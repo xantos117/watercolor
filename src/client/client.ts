@@ -6,8 +6,10 @@ import { WebGLRenderTarget } from 'three';
 let mouseX : number, mouseY : number;
 let mouseDown = false;
 let canvas : HTMLCanvasElement = document.getElementById('myCanvas') as HTMLCanvasElement;
-let canvasWidth = 800;
-let canvasHeight = 600;
+canvas.width = 1280;
+canvas.height = 720;
+let canvasWidth = canvas.width;
+let canvasHeight = canvas.height;
 
 let uniforms = {
     screenWidth: {type: "f", value: 0},
@@ -55,11 +57,11 @@ if(fragShader) {
     fragShaderText = fragShader.textContent;
 }
 
-let shaderMat = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragShaderText ? fragShaderText : "",
-});
+// let shaderMat = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragShaderText ? fragShaderText : "",
+// });
 
 let onMouseMove = function(e: MouseEvent)
 {
@@ -138,13 +140,13 @@ function handleMouseMove(event: MouseEvent) {
     //console.log(mouse);
 }
 
-window.addEventListener('resize', onWindowResize, false)
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    render()
-}
+// window.addEventListener('resize', onWindowResize, false)
+// function onWindowResize() {
+//     camera.aspect = window.innerWidth / window.innerHeight
+//     camera.updateProjectionMatrix()
+//     renderer.setSize(window.innerWidth, window.innerHeight)
+//     render()
+// }
 
 window.onmousedown = onMouseDown;
 window.onmouseup = onMouseUp;
@@ -171,9 +173,9 @@ function animate() {
     cube.rotation.x += 0.01
     cube.rotation.y += 0.01
 
-    uniforms.tSource.value = mTexture2;
-    renderer.setRenderTarget(mTexture1);
-    renderer.render(scene, camera);
+    // uniforms.tSource.value = mTexture2;
+    // renderer.setRenderTarget(mTexture1);
+    // renderer.render(scene, camera);
     //uniforms.tSource.value = mTexture1;
 
     //paperObj.position.copy(mouse);

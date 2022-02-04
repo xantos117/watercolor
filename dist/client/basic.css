@@ -1,51 +1,15 @@
-body {
-    font-family:sans-serif;
-    background:#333333;
-    color:#777777;
-    width: 1200px;
-    margin: 0 auto;
+canvas {
+    width: 800px;
+    height: 600px;
 }
-
-header, footer, aside, nav {
-    display: block;
-}
-
-a:link {color:#777777;}
-a:visited {color:#777777;}
-a:hover {color:#999999;}
-a:active {color:#ffffff;}
-
-#copyright {
-    font-size:8pt;
-    text-align:center;
-    margin-top:10px;
-}
-
-.remark {
-    color: #ffffff;
-}
-
-.unsafe {
-    color : #c86464;
-}
-
-#simulation {
-    padding-left: 0;
-    padding-right: 0;
-    margin-left: auto;
-    margin-right: auto;
-    display: block;
-    width: 0.8pc;
-}
-
 
 #myCanvas {
     padding: 0;
     margin: auto;
-    display: block;
-    width: 0.8pc;
-    height: 0.8pc;
-    position: absolute;
+    display: left;
+    width: 800px;
+    height: 600px;
+    position: relative;
     top: 0;
     bottom: 0;
     left: 0;
