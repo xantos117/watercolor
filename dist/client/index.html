@@ -10,6 +10,39 @@
                 margin: 0px;
             }
         </style>
+        <script id="vertex-shader" type="x-shader/x-vertex">
+            varying vec2 vUv;
+            
+            void main()
+            {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          </script>
+          
+          <script id="fragment-shader" type="x-shader/x-fragment">
+            varying vec2 vUv;
+            uniform float screenWidth;
+            uniform float screenHeight;
+            uniform sampler2D tSource;
+            uniform float dt;
+            uniform vec2 brush;
+            
+            vec2 texel = vec2(1.0/screenWidth, 1.0/screenHeight);
+            float step_x = 1.0/screenWidth;
+            float step_y = 1.0/screenHeight;
+            void main() { 
+                if(brush.x < -5.0)
+                {
+                    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+                    return;
+                }
+
+                vec2 uv = texture2D(tSource, vUv).rg;
+
+                gl_FragColor = vec4(0.0,0.0,0.0,1.0); 
+            }
+          </script>
     </head>
 
     <body>
