@@ -5,8 +5,9 @@ import { WebGLRenderTarget } from 'three';
 
 let mouseX : number, mouseY : number;
 let mouseDown = false;
-let canvasWidth = window.innerWidth;
-let canvasHeight = window.innerHeight;
+let canvas : HTMLCanvasElement = document.getElementById('myCanvas') as HTMLCanvasElement;
+let canvasWidth = 800;
+let canvasHeight = 600;
 
 let uniforms = {
     screenWidth: {type: "f", value: 0},
@@ -97,9 +98,9 @@ const camera = new THREE.PerspectiveCamera(
 )
 camera.position.z = 2
 
-const renderer = new THREE.WebGLRenderer({canvas: window, preserveDrawingBuffer: true});
-renderer.setSize(window.innerWidth, window.innerHeight)
-document.body.appendChild(renderer.domElement)
+const renderer = new THREE.WebGLRenderer({canvas: canvas, preserveDrawingBuffer: true});
+renderer.setSize(canvasWidth, canvasHeight)
+//document.body.appendChild(renderer.domElement)
 
 const geometry = new THREE.BoxGeometry()
 const paper = new THREE.PlaneGeometry(1,1)
@@ -112,7 +113,7 @@ const paperMat = new THREE.MeshBasicMaterial({
     side: THREE.DoubleSide
 })
 
-const paperObj = new THREE.Mesh(paper, shaderMat);
+const paperObj = new THREE.Mesh(paper, paperMat);
 
 const cube = new THREE.Mesh(geometry, material)
 scene.add(cube)

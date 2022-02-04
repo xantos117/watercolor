@@ -1,15 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Three.js TypeScript Tutorials by Sean Bradley : https://sbcode.net/threejs</title>
-        <style>
-            body {
-                overflow: hidden;
-                margin: 0px;
-            }
-        </style>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="simple/simple.min.css">
+        <link rel="stylesheet" href="index.css">
+        <title>Trapezoidal Maps</title>
         <script id="vertex-shader" type="x-shader/x-vertex">
             varying vec2 vUv;
             
@@ -46,6 +43,19 @@
     </head>
 
     <body>
+        <header>
+            <h1>Painting with Water<br><small>A Fluid Sim Painting App</small></h1><br>
+            <!-- <a href="algorithm.html">Algorithm</a>
+            <a href="https://github.com/qxzcode/trapezoidal-maps">Source Code</a> -->
+        </header>
+    
+        <main>
+            <canvas id="myCanvas"></canvas><br><br>
+        </main>
+        
+        <footer>
+            Theo Lincoln
+        </footer>
         <script type="module" src="bundle.js"></script>
     </body>
 </html>
