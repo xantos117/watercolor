@@ -6,38 +6,85 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="simple/simple.min.css">
         <link rel="stylesheet" href="basic.css">
-        <title>Trapezoidal Maps</title>
+        <title>Watercolors</title>
         <script id="vertex-shader" type="x-shader/x-vertex">
             varying vec2 vUv;
-            
-            void main()
-            {
+            void main() {
                 vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
             }
           </script>
           
           <script id="fragment-shader" type="x-shader/x-fragment">
+            #include <common>
+
             varying vec2 vUv;
+            uniform vec3 iResolution;
+            uniform float iTime;
+            uniform vec4 inkColor;
+            uniform sampler2D tSource;
+            uniform vec2 mousePos;
             uniform float screenWidth;
             uniform float screenHeight;
-            uniform sampler2D tSource;
-            uniform float dt;
-            uniform vec2 brush;
+            uniform bool mDown;
+
             
-            vec2 texel = vec2(1.0/screenWidth, 1.0/screenHeight);
-            float step_x = 1.0/screenWidth;
-            float step_y = 1.0/screenHeight;
-            void main() { 
-                if(brush.x < -5.0)
-                {
-                    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-                    return;
+            void mainImage( out vec4 fragColor) {
+                vec2 texel = vec2(1.0/screenWidth, 1.0/screenHeight);
+                vec4 brush = vec4(1.);
+                vec4 color1 = inkColor;
+                vec4 color2 = vec4(0.0);
+                float travelDist = (10. / 1000.) * iTime;
+
+                vec2 diff = (vUv - mousePos)/texel;
+                float dist = dot(diff, diff);
+                vec4 curColor = texture2D(tSource,vUv);
+                vec4 compColor;
+                vec2 searchDir;
+
+                compColor = vec4(0);
+
+                for(float i = -1.; i<=1.001;i++){
+                    for(float j=-1.;j<=1.001;j++){
+                        if(!(i==0. && j==0.)){
+                            curColor = texture2D(tSource,vec2(vUv.x + i*texel.x, vUv.y + j*texel.y));
+                            compColor.r = max(compColor.r,curColor.r);
+                            compColor.g = max(compColor.g,curColor.g);
+                            compColor.b = max(compColor.b,curColor.b);
+                        }
+                    }
                 }
+                
 
-                vec2 uv = texture2D(tSource, vUv).rg;
+                if(dist < 50. && mDown) {   
+                    fragColor = color1 + curColor;
+                }
+                else {
+                    compColor.r = min(1.,compColor.r);
+                    compColor.g = min(1.,compColor.g);
+                    compColor.b = min(1.,compColor.b);
+                    fragColor = (compColor*0.99);
+                }
+                
+            }
+            
+            void main() {
+                mainImage(gl_FragColor);
+            }
+          </script>
+          <script id="fragment-screen" type="x-shader/x-fragment">
+            #include <common>
 
-                gl_FragColor = vec4(0.0,0.0,0.0,1.0); 
+            varying vec2 vUv;
+            uniform vec3 iResolution;
+            uniform float iTime;
+            uniform sampler2D tSource;
+            uniform vec2 mousePos;
+            uniform float screenWidth;
+            uniform float screenHeight;
+            
+            void main() {
+                gl_FragColor = texture2D(tSource,vUv);
             }
           </script>
     </head>
@@ -50,7 +97,10 @@
         </header>
     
         <main>
+            <div id="gui"></div>
+            <div id="frame" style="align-content: center;">
             <canvas id="myCanvas" style="width:1024px;height:512px"></canvas>
+            </div>
         </main>
         
         <footer>
