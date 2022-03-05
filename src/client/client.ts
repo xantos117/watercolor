@@ -26,11 +26,11 @@ renderer.setSize(canvasWidth,canvasHeight);
 document.body.append(renderer.domElement);
 
 let bufferScene = new THREE.Scene();
-let StreamPlusScene = new THREE.Scene();
-let StreamXScene = new THREE.Scene();
-let VelDensScene = new THREE.Scene();
-let RelaxPlusScene = new THREE.Scene();
-let RelaxXScene = new THREE.Scene();
+// let StreamPlusScene = new THREE.Scene();
+// let StreamXScene = new THREE.Scene();
+// let VelDensScene = new THREE.Scene();
+// let RelaxPlusScene = new THREE.Scene();
+// let RelaxXScene = new THREE.Scene();
 
 
 let bufferTexture = new THREE.WebGLRenderTarget( 1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter});
@@ -105,18 +105,23 @@ const paperMat = new THREE.MeshBasicMaterial({
 let vertShader : HTMLElement | null = document.getElementById('vertex-shader');
 let fragShader : HTMLElement | null = document.getElementById('fragment-shader');
 let fragScreen : HTMLElement | null = document.getElementById('fragment-screen');
-let fragStreamPlus : HTMLElement | null = document.getElementById('streamingPlus');
-let fragStreamX : HTMLElement | null = document.getElementById('streamingX');
-let fragVelDensUpd : HTMLElement | null = document.getElementById('velDensUpdate');
-let fragRelaxPlus : HTMLElement | null = document.getElementById('relaxPlus');
-let fragRelaxX : HTMLElement | null = document.getElementById('relaxX');
+// let fragStreamPlus : HTMLElement | null = document.getElementById('streamingPlus');
+// let fragStreamX : HTMLElement | null = document.getElementById('streamingX');
+// let fragVelDensUpd : HTMLElement | null = document.getElementById('velDensUpdate');
+// let fragRelaxPlus : HTMLElement | null = document.getElementById('relaxPlus');
+// let fragRelaxX : HTMLElement | null = document.getElementById('relaxX');
 
 const loader = new THREE.TextureLoader();
 const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/bayer.png');
+let PaperTexture = loader.load('paper_texture_transparent.png');
 texture.minFilter = THREE.NearestFilter;
 texture.magFilter = THREE.NearestFilter;
 texture.wrapS = THREE.RepeatWrapping;
 texture.wrapT = THREE.RepeatWrapping;
+PaperTexture.minFilter = THREE.NearestFilter;
+PaperTexture.magFilter = THREE.NearestFilter;
+PaperTexture.wrapS = THREE.RepeatWrapping;
+PaperTexture.wrapT = THREE.RepeatWrapping;
 
 let uniforms = {
     iTime: { value: 0 },
@@ -128,6 +133,8 @@ let uniforms = {
     stVecs: {type: "t", value: initTex as THREE.Texture},
     diagVecs: {type: "t", value: initTex as THREE.Texture},
     otherVecs: {type: "t", value: initTex as THREE.Texture},
+    paperTexture: {type: "t", value: PaperTexture},
+    shaderStage: {value: 0},
     mDown: {type: "b", value: false}, 
     omg: {value: 0.9},
     rho0: {value: 1.0},
@@ -209,30 +216,30 @@ if(fragScreen) {
     fragScreenText = fragScreen.textContent;
 }
 
-let fragStreamPlusText : string | null = "";
-if(fragStreamPlus) {
-    fragStreamPlusText = fragStreamPlus.textContent;
-}
+// let fragStreamPlusText : string | null = "";
+// if(fragStreamPlus) {
+//     fragStreamPlusText = fragStreamPlus.textContent;
+// }
 
-let fragStreamXText : string | null = "";
-if(fragStreamX) {
-    fragStreamXText = fragStreamX.textContent;
-}
+// let fragStreamXText : string | null = "";
+// if(fragStreamX) {
+//     fragStreamXText = fragStreamX.textContent;
+// }
 
-let fragVelDensUpdText : string | null = "";
-if(fragVelDensUpd) {
-    fragVelDensUpdText = fragVelDensUpd.textContent;
-}
+// let fragVelDensUpdText : string | null = "";
+// if(fragVelDensUpd) {
+//     fragVelDensUpdText = fragVelDensUpd.textContent;
+// }
 
-let fragRelaxPlusText : string | null = "";
-if(fragRelaxPlus) {
-    fragRelaxPlusText = fragRelaxPlus.textContent;
-}
+// let fragRelaxPlusText : string | null = "";
+// if(fragRelaxPlus) {
+//     fragRelaxPlusText = fragRelaxPlus.textContent;
+// }
 
-let fragRelaxXText : string | null = "";
-if(fragRelaxX) {
-    fragRelaxXText = fragRelaxX.textContent;
-}
+// let fragRelaxXText : string | null = "";
+// if(fragRelaxX) {
+//     fragRelaxXText = fragRelaxX.textContent;
+// }
 
 let shaderMat = new THREE.ShaderMaterial({
     uniforms: uniforms,
@@ -246,34 +253,34 @@ let shaderMat2 = new THREE.ShaderMaterial({
     fragmentShader: fragScreenText ? fragScreenText : "",
 });
 
-let shaderStreamPlus = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragStreamPlusText ? fragStreamPlusText : "",
-});
+// let shaderStreamPlus = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragStreamPlusText ? fragStreamPlusText : "",
+// });
 
-let shaderStreamX = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragStreamXText ? fragStreamXText : "",
-});
+// let shaderStreamX = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragStreamXText ? fragStreamXText : "",
+// });
 
-let shaderVelDensUpd = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragVelDensUpdText ? fragVelDensUpdText : "",
-});
+// let shaderVelDensUpd = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragVelDensUpdText ? fragVelDensUpdText : "",
+// });
 
-let shaderRelaxPlus = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragRelaxPlusText ? fragRelaxPlusText : "",
-});
-let shaderRelaxX = new THREE.ShaderMaterial({
-    uniforms: uniforms,
-    vertexShader: vertShaderText ? vertShaderText : "",
-    fragmentShader: fragRelaxXText ? fragRelaxXText : "",
-});
+// let shaderRelaxPlus = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragRelaxPlusText ? fragRelaxPlusText : "",
+// });
+// let shaderRelaxX = new THREE.ShaderMaterial({
+//     uniforms: uniforms,
+//     vertexShader: vertShaderText ? vertShaderText : "",
+//     fragmentShader: fragRelaxXText ? fragRelaxXText : "",
+// });
 
 
 
@@ -281,24 +288,24 @@ paperMat.map = bufferTexture.texture;
 paperMat.map.wrapS = THREE.RepeatWrapping;
 paperMat.map.wrapT = THREE.RepeatWrapping;
 
-const paperObj = new THREE.Mesh(paper, shaderMat2);
+const paperObj = new THREE.Mesh(geometry, shaderMat2);
 
 const cube = new THREE.Mesh(geometry, shaderMat);
 
-const streamPlusCube = new THREE.Mesh(geometry,shaderStreamPlus);
-const streamXCube = new THREE.Mesh(geometry,shaderStreamX);
-const velDensUpdCube = new THREE.Mesh(geometry,shaderVelDensUpd);
-const relaxPlusCube = new THREE.Mesh(geometry,shaderRelaxPlus);
-const relaxXCube = new THREE.Mesh(geometry,shaderRelaxX);
+// const streamPlusCube = new THREE.Mesh(geometry,shaderStreamPlus);
+// const streamXCube = new THREE.Mesh(geometry,shaderStreamX);
+// const velDensUpdCube = new THREE.Mesh(geometry,shaderVelDensUpd);
+// const relaxPlusCube = new THREE.Mesh(geometry,shaderRelaxPlus);
+// const relaxXCube = new THREE.Mesh(geometry,shaderRelaxX);
 
 bufferScene.add(cube)
 scene.add(paperObj);
 
-StreamPlusScene.add(streamPlusCube);
-StreamXScene.add(streamXCube);
-VelDensScene.add(velDensUpdCube);
-RelaxPlusScene.add(relaxPlusCube);
-RelaxXScene.add(relaxXCube);
+// StreamPlusScene.add(streamPlusCube);
+// StreamXScene.add(streamXCube);
+// VelDensScene.add(velDensUpdCube);
+// RelaxPlusScene.add(relaxPlusCube);
+// RelaxXScene.add(relaxXCube);
 
 const colorSet = { 
     red: new THREE.Vector4(1,0,0,1),
@@ -326,28 +333,33 @@ function render() {
     uniforms.inkColor.value = curColor.Color;
     uniforms.iTime.value = (Date.now() - initTime)/1000;
     // Render onto our off-screen texture
+    uniforms.shaderStage.value = 0;
     if(screenToggle){
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(StVecs1);
-        renderer.render(StreamPlusScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 1;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(DiagVecs1);
-        renderer.render(StreamXScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 2;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(OtherVecs2);
-        renderer.render(VelDensScene, camera);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs1.texture;
         uniforms.diagVecs.value = DiagVecs1.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
+        uniforms.shaderStage.value = 3;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(StVecs2);
-        renderer.render(RelaxPlusScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 4;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(DiagVecs2);
-        renderer.render(RelaxXScene, camera);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
@@ -357,26 +369,31 @@ function render() {
         uniforms.otherVecs.value = OtherVecs2.texture;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(StVecs1);
-        renderer.render(StreamPlusScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 1;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(DiagVecs1);
-        renderer.render(StreamXScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 2;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(OtherVecs1);
-        renderer.render(VelDensScene, camera);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs1.texture;
         uniforms.diagVecs.value = DiagVecs1.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
+        uniforms.shaderStage.value = 3;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(StVecs2);
-        renderer.render(RelaxPlusScene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 4;
         renderer.setClearColor("rgb(0, 0, 0)");
         renderer.setRenderTarget(DiagVecs2);
-        renderer.render(RelaxXScene, camera);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
     }
+    uniforms.shaderStage.value = 5;
     screenToggle = !screenToggle;
     renderer.setClearColor("rgb(150, 150, 150)");
     renderer.setRenderTarget(null);
