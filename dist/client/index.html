@@ -131,7 +131,7 @@
             // lattice geometry constants
             float w[9] = float[9](4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,1./36.,1./36.,1./36.);
 
-            float eta = 0.01; 
+            float eta = 0.5; 
             float waterEvapRate = 0.001;
             float maxWaterCap = 1.;
             
@@ -636,38 +636,40 @@
                 float pfix = priorVec.b;
                 float ptemp = 0.;
                 float nu = 0.01;
+                float toFix = 0.;
                 if(dist < 50. && mDown) {   
                     psurf = 1.0;
                 }
 
-                if(otherVec.a + reboundVec.r > nu)
+                if(otherVec.a + reboundVec.r > 0.)
                     pflow = min((priorVec.g * otherVec.a + psurf * reboundVec.r)/(otherVec.a + reboundVec.r),1.0);
 
                 //if(reboundVec.r > nu){
                 //    psurf = psurf * (otherVec.a/reboundVec.r);
                 //}
+                if(reboundVec.b < 1.){
+                    if(reboundVec.b < 10.) {
+                        // already wet
+                        // perhaps velocity should scale this? 
+                        pflow = texture2D(pigmentTexture1,vUv - vel).g;
+                    }else {
+                        for(int i = 1; i<5;i++) {
+                            ptemp += w[i]*stVec[i] * texture2D(pigmentTexture1,vUv+e[i]).g /stVec[i];
+                        }
+                        for(int i = 5;i<9;i++) {
+                            ptemp += w[i] * texture2D(pigmentTexture1,vUv+e[i]).g / diagVec[i];
+                        }
+                        if(otherVec.a > 1. && ptemp > eta)
+                            ptemp *= (1./otherVec.a);
+                        pflow = min(pflow + ptemp,1.0);
+                    }
+                    //psurf = ptemp;
+                    //psurf = max(psurf * reboundVec.r,0.);
 
-                if(reboundVec.b < 10.) {
-                    // already wet
-                    // perhaps velocity should scale this? 
-                    pflow = texture2D(pigmentTexture1,vUv - vel).g;
-                }else {
-                    for(int i = 1; i<5;i++) {
-                        ptemp += w[i]*stVec[i] * texture2D(pigmentTexture1,vUv+e[i]).g;
-                    }
-                    for(int i = 5;i<9;i++) {
-                        ptemp += w[i]*diagVec[i] * texture2D(pigmentTexture1,vUv+e[i]).g;
-                    }
-                    if(otherVec.a > 1. && ptemp > eta)
-                        ptemp *= (1./otherVec.a);
-                    pflow = min(pflow + ptemp,1.0);
+                    float psi = abs((reboundVec.a - otherVec.a)/reboundVec.a);
+                    toFix = float(psi > nu)*max(psi * (1.-smoothstep(0.,1.0,otherVec.a)),0.0001);
+                    pfix = min(pfix + toFix,1.0);
                 }
-                //psurf = ptemp;
-                //psurf = max(psurf * reboundVec.r,0.);
-
-                float psi = abs((reboundVec.a - otherVec.a)/reboundVec.a);
-                float toFix = float(psi > nu)*max(psi * (1.-smoothstep(0.,1.0,otherVec.a)),0.0001);
-                pfix = min(pfix + toFix,1.0);
 
                 fragColor = vec4(psurf,clamp(pflow-toFix,0.,1.),pfix,1.);
             }
