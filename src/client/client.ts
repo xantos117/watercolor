@@ -153,6 +153,8 @@ let uniforms = {
     omg: {value: 0.9},
     rho0: {value: 1.0},
     c: {value: 1.0},
+    alpha: {value: 0.3},
+    eta: {value: 0.5},
     ink: {value: false},
 };
 
@@ -297,25 +299,34 @@ let shaderMat2 = new THREE.ShaderMaterial({
     uniforms: uniforms,
     vertexShader: vertShaderText ? vertShaderText : "",
     fragmentShader: fragScreenText ? fragScreenText : "",
+    transparent: false,
+});
+
+let shaderMat3 = new THREE.ShaderMaterial({
+    uniforms: uniforms,
+    vertexShader: vertShaderText ? vertShaderText : "",
+    fragmentShader: fragScreenText ? fragScreenText : "",
+    transparent: true,
 });
 
 paperMat.map = bufferTexture.texture;
 paperMat.map.wrapS = THREE.RepeatWrapping;
 paperMat.map.wrapT = THREE.RepeatWrapping;
 
-const paperObj = new THREE.Mesh(geometry, shaderMat2);
+const paperObj1 = new THREE.Mesh(geometry, shaderMat2);
+const paperObj2 = new THREE.Mesh(geometry, shaderMat3);
 
 const cube = new THREE.Mesh(geometry, shaderMat);
 
-bufferScene.add(cube)
-scene.add(paperObj);
+bufferScene.add(paperObj2);
+scene.add(paperObj1);
 
 const colorSet = { 
     red: new THREE.Vector4(1,0,0,1),
     green: new THREE.Vector4(0,1,0,1),
     blue: new THREE.Vector4(0,0,1,1),
 };
-const curColor = {Color: new THREE.Vector4(1,0,0,1)};
+const curColor = {Color: colorSet.red};
 
 const renderStages = [
     0,
@@ -334,9 +345,10 @@ const colorFolder = gui.addFolder('Color');
 colorFolder.add(curColor,'Color',colorSet);
 
 const uniformFolder = gui.addFolder('Uniforms');
-uniformFolder.add(uniforms.omg,"value",0.5,1.5).name('Omega');
+uniformFolder.add(uniforms.omg,"value",0,1).name('Omega');
 uniformFolder.add(uniforms.rho0,"value",0.5,1.5).name('rho0');
-uniformFolder.add(uniforms.c,"value",0.5,1.5).name('c');
+uniformFolder.add(uniforms.eta,"value",0,1).name('eta');
+uniformFolder.add(uniforms.alpha,"value",0.2,0.5).name('alpha');
 uniformFolder.add(curStage,'Stage',renderStages);
 //uniformFolder.add(uniforms.reboundTexture.)
 
@@ -427,9 +439,9 @@ function render() {
     screenToggle = !screenToggle;
     
     renderer.setScissor( sliderPos, 0, window.innerWidth, window.innerHeight );
-    renderer.setClearColor("rgb(150, 150, 150)");
+    renderer.setClearColor("rgb(255, 255, 255)");
     renderer.setRenderTarget(null);
-    renderer.render( scene, camera );
+    renderer.render( bufferScene, camera );
     renderer.setScissor( 0, 0, sliderPos, window.innerHeight );
     uniforms.shaderStage.value = curStage.Stage;
     renderer.render( scene, camera );
