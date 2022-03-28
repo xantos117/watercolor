@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import Stats from 'three/examples/jsm/libs/stats.module'
 import { GUI } from 'lil-gui'
-import { WebGLRenderTarget } from 'three';
+import { Vector3, Vector4, WebGLRenderTarget } from 'three';
 
 let mouseX : number, mouseY : number;
 let mouseDown = false;
@@ -16,6 +16,7 @@ initTex.magFilter = THREE.NearestFilter;
 initTex.needsUpdate = true;
 let initTex2 = new THREE.Texture().copy(initTex);
 let isInked = false;
+let sliderSelected = false;
 
 let scene = new THREE.Scene();
 
@@ -79,6 +80,12 @@ let redLayer1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
+let greenLayer1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+    {minFilter: THREE.LinearFilter,
+     magFilter: THREE.LinearFilter,
+     format: THREE.RGBAFormat,
+     type: THREE.FloatType});
+
 let StVecs2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
@@ -105,6 +112,11 @@ let redLayer2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
+let greenLayer2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+    {minFilter: THREE.LinearFilter,
+     magFilter: THREE.LinearFilter,
+     format: THREE.RGBAFormat,
+     type: THREE.FloatType});
 
 console.log(StVecs1.texture.image);
 
@@ -125,7 +137,7 @@ let fragScreen : HTMLElement | null = document.getElementById('fragment-screen')
 
 const loader = new THREE.TextureLoader();
 const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/bayer.png');
-let PaperTexture = loader.load('paper_texture_transparent.png');
+let PaperTexture = loader.load('paper-grain-texture.jpg');
 texture.minFilter = THREE.NearestFilter;
 texture.magFilter = THREE.NearestFilter;
 texture.wrapS = THREE.RepeatWrapping;
@@ -138,6 +150,7 @@ PaperTexture.wrapT = THREE.RepeatWrapping;
 let uniforms = {
     iTime: { value: 0 },
     iResolution:  { value: new THREE.Vector3(1, 1, 1) },
+    mousePrior: { value: new THREE.Vector2() },
     mousePos: { value: new THREE.Vector2() },
     inkColor: { value: new THREE.Vector4(1,1,1,1)},
     screenWidth: {value: canvasWidth},
@@ -147,16 +160,26 @@ let uniforms = {
     otherVecs: {type: "t", value: initTex as THREE.Texture},
     reboundTexture: {type: "t", value: initTex as THREE.Texture},
     pigmentTexture1: {type: "t", value: initTex as THREE.Texture},
+    pigmentTexture2: {type: "t", value: initTex as THREE.Texture},
     paperTexture: {type: "t", value: PaperTexture},
     shaderStage: {value: 0},
     mDown: {type: "b", value: false}, 
+    paintTexID: {value: 1},
     omg: {value: 0.9},
     rho0: {value: 1.0},
     c: {value: 1.0},
     alpha: {value: 0.3},
-    eta: {value: 0.5},
+    eta: {value: 0.001},
     ink: {value: false},
+    brushRadius: {value: 10.},
+    dv: {value: new THREE.Vector2()},
+    K1: {value: new THREE.Vector3()},
+    S1: {value: new THREE.Vector3()},
+    K2: {value: new THREE.Vector3()},
+    S2: {value: new THREE.Vector3()},
 };
+
+let maxDist = new THREE.Vector2(canvasWidth,canvasHeight);
 
 
 const sizes = {
@@ -177,6 +200,8 @@ function initSlider() {
 
         window.addEventListener( 'pointermove', onPointerMove );
         window.addEventListener( 'pointerup', onPointerUp );
+        sliderSelected = true;
+        mouseDown = false;
 
     }
 
@@ -186,6 +211,7 @@ function initSlider() {
 
         window.removeEventListener( 'pointermove', onPointerMove );
         window.removeEventListener( 'pointerup', onPointerUp );
+        sliderSelected = false;
 
     }
 
@@ -216,62 +242,121 @@ function doMouseMove(event: MouseEvent)
     mouse.y = event.pageY
     mouse.z = 1;
 
-    if(mouseDown) {
+    if(mouseDown && !sliderSelected) {
+
         uniforms.mousePos.value.x = mouse.x/canvasWidth;
         uniforms.mousePos.value.y = 1-mouse.y/canvasHeight;
     }
 }
 
-function doMouseDown(event: MouseEvent)
+function doMouseDown(event: PointerEvent)
 {
     mouse.x = event.pageX;
     mouse.y = event.pageY;
     mouse.z = 1;
-    mouseDown = true;
-    //uniforms.mDown.value = true;
-    if(!isInked){
-        isInked = true;
-        uniforms.ink.value = true;
+    if(!sliderSelected){
+        mouseDown = true;
+        //uniforms.mDown.value = true;
+        if(!isInked){
+            isInked = true;
+            uniforms.ink.value = true;
+        }
+        uniforms.mousePos.value.x = mouse.x/canvasWidth;
+        uniforms.mousePos.value.y = 1-mouse.y/canvasHeight;
+        uniforms.mousePrior.value.copy(uniforms.mousePos.value);
     }
-
-    uniforms.mousePos.value.x = mouse.x/canvasWidth;
-    uniforms.mousePos.value.y = 1-mouse.y/canvasHeight;
 }
 
-function onMouseUp(event: Event)
+function onMouseUp(event: PointerEvent)
 {
     mouseDown = false;
     //uniforms.mDown.value = false;
 }
 
-function handleMouseMove(event: MouseEvent) {
-    mouse.x = event.pageX;
-    mouse.y = event.pageY;
-    mouse.z = 1;
-
-    if(mouseDown){
-        uniforms.mousePos.value.x = mouse.x/canvasWidth;
-        uniforms.mousePos.value.y = 1 - (mouse.y/canvasHeight);
-        console.log(uniforms.mousePos.value);
+function logKey(event: KeyboardEvent){
+    console.log(event.code);
+    switch(event.code){
+        case 'Digit1':
+            curStage.Stage = renderStages[1];
+            break;
+        case 'Digit2':
+            curStage.Stage = renderStages[2];
+            break;
+        case 'Digit3':
+            curStage.Stage = renderStages[3];
+            break;
+        case 'Digit4':
+            curStage.Stage = renderStages[4];
+            break;
+        case 'Digit5':
+            curStage.Stage = renderStages[5];
+            break;
+        case 'Digit6':
+            curStage.Stage = renderStages[6];
+            break;
+        case 'Digit0':
+            curStage.Stage = renderStages[0];
+            break;
+        case 'Digit7':
+            curStage.Stage = renderStages[7];
     }
 }
 
 window.addEventListener( 'resize', onWindowResize, false );
+window.addEventListener('keydown',logKey);
 
 function onWindowResize() {
     canvasWidth = window.innerWidth;
     canvasHeight = window.innerHeight;
+    maxDist = new THREE.Vector2(canvasWidth,canvasHeight);
 
     renderer.setSize( window.innerWidth, window.innerHeight );
+}
+
+function calculateKS(rw: THREE.Vector3,rb: THREE.Vector3){
+    let a = new THREE.Vector3();
+    let b = new THREE.Vector3();
+    let S = new THREE.Vector3();
+    let K = new THREE.Vector3();
+    let ls = rw.clone();
+    ls.negate();
+    a.addVectors(rb,ls);
+    a.addScalar(1);
+    a.divide(rb);
+    a.add(rw);
+    a.multiplyScalar(0.5);
+    let t = a.clone();
+    t.multiply(a);
+    t.addScalar(-1);
+    b = new THREE.Vector3(Math.sqrt(t.x),Math.sqrt(t.y),Math.sqrt(t.z));
+    t = b.clone();
+    ls = rw.clone();
+    ls.addScalar(-1);
+    ls.multiplyScalar(-1);
+    t.multiply(ls);
+    let t2 = b.clone();
+    ls = a.clone();
+    ls.sub(rw);
+    let ls2 = a.clone();
+    ls2.subScalar(1);
+    ls.multiply(ls2);
+    t2.multiply(b);
+    t2.sub(ls);
+    t.divide(t2);
+    S = new THREE.Vector3(Math.atanh(t.x),Math.atanh(t.y),Math.atanh(t.z));
+    S.divide(b);
+    K = S.clone();
+    K.multiply(a.clone().subScalar(1));
+    return {K,S};
 }
 
 // window.onmousedown = onMouseDown;
 // window.onmouseup = onMouseUp;
 // window.onmousemove = onMouseMove;
 
-window.addEventListener("mousemove", doMouseMove);
-window.addEventListener("mousedown",doMouseDown);
-window.addEventListener("mouseup",onMouseUp);
+renderer.domElement.addEventListener("pointermove", doMouseMove);
+renderer.domElement.addEventListener("pointerdown",doMouseDown);
+renderer.domElement.addEventListener("pointerup",onMouseUp);
 // window.addEventListener("mousemove",handleMouseMove);
 
 let vertShaderText : string | null = "";
@@ -327,6 +412,11 @@ const colorSet = {
     blue: new THREE.Vector4(0,0,1,1),
 };
 const curColor = {Color: colorSet.red};
+const curColorID = {ID: 1};
+const colorIDs = [
+    1,
+    2,
+];
 
 const renderStages = [
     0,
@@ -336,6 +426,7 @@ const renderStages = [
     4,
     5,
     6,
+    7,
 ];
 
 const curStage = {Stage: 6};
@@ -343,25 +434,67 @@ const curStage = {Stage: 6};
 const gui = new GUI();
 const colorFolder = gui.addFolder('Color');
 colorFolder.add(curColor,'Color',colorSet);
+colorFolder.add(curColorID,'ID',colorIDs);
 
 const uniformFolder = gui.addFolder('Uniforms');
 uniformFolder.add(uniforms.omg,"value",0,1).name('Omega');
 uniformFolder.add(uniforms.rho0,"value",0.5,1.5).name('rho0');
-uniformFolder.add(uniforms.eta,"value",0,1).name('eta');
+uniformFolder.add(uniforms.eta,"value",0,0.005).name('eta');
 uniformFolder.add(uniforms.alpha,"value",0.2,0.5).name('alpha');
 uniformFolder.add(curStage,'Stage',renderStages);
-//uniformFolder.add(uniforms.reboundTexture.)
+uniformFolder.add(uniforms.brushRadius,"value",1,100).name('Brush Size');
+
+var params = {color1: "#1861b3",
+              color2: "#175297" };
+//var gui = new dat.GUI();
+let color1 = new THREE.Color("#1861b3");
+let color2 = new THREE.Color("#1861b3");
+
+var update = function () {
+    color1 = new THREE.Color( params.color1 );
+    var hex = color1.getHexString();
+    var css = color1.getStyle();
+    var display = "#"+ hex + " or " + css;
+    //$("#colors").append(display+"<br>");
+    KS = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
+};
+var update2 = function () {
+    color2 = new THREE.Color( params.color2 );
+    var hex = color2.getHexString();
+    var css = color2.getStyle();
+    var display = "#"+ hex + " or " + css;
+    //$("#colors").append(display+"<br>");
+    KS = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
+};
+
+gui.addColor(params,'color1').onChange(update);
+gui.addColor(params,'color2').onChange(update2);
 
 
 let screenToggle = false;
 
 let initTime = Date.now();
+let KS = calculateKS(new THREE.Vector3(0.99,0.1,0.1), new THREE.Vector3(0.8,0.09,0.09));
+//console.log(KS);
 
 function render() {
     requestAnimationFrame( render );
     uniforms.inkColor.value = curColor.Color;
     uniforms.iTime.value = (Date.now() - initTime)/1000;
+    let maxdv = maxDist.divideScalar(uniforms.iTime.value);
+    uniforms.dv.value.copy(maxdv);
+    //let dv = new THREE.Vector2().addVectors(uniforms.mousePrior.value, uniforms.mousePos.value.).multiplyScalar(1/maxdv);
+    //console.log(dv);
+    //uniforms.dv.value.copy(dv);
     // Render onto our off-screen texture
+    // uniforms.K.value.copy(KS.K);
+    // uniforms.S.value.copy(KS.S);
+    uniforms.K1.value = new Vector3(0.22,1.47,0.57);
+    uniforms.S1.value = new Vector3(0.05,0.003,0.03);
+    uniforms.K2.value = new Vector3(1.62,0.61,1.64);
+    uniforms.S2.value = new Vector3(0.01,0.012,0.003);
+    uniforms.paintTexID.value = curColorID.ID;
+    
     uniforms.shaderStage.value = 5;
     renderer.setClearColor("rgb(0, 0, 0)");
     if(mouseDown) {
@@ -373,6 +506,7 @@ function render() {
         uniforms.otherVecs.value = OtherVecs1.texture;
         uniforms.reboundTexture.value = waterAndBoundary1.texture;
         uniforms.pigmentTexture1.value = redLayer1.texture;
+        uniforms.pigmentTexture2.value = greenLayer1.texture;
         renderer.setRenderTarget(waterAndBoundary2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 0;
@@ -396,6 +530,9 @@ function render() {
         uniforms.shaderStage.value = 6;
         renderer.setRenderTarget(redLayer2);
         renderer.render(scene, camera);
+        uniforms.shaderStage.value = 7;
+        renderer.setRenderTarget(greenLayer2);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
@@ -405,6 +542,7 @@ function render() {
         uniforms.otherVecs.value = OtherVecs2.texture;
         uniforms.reboundTexture.value = waterAndBoundary2.texture;
         uniforms.pigmentTexture1.value = redLayer2.texture;
+        uniforms.pigmentTexture2.value = greenLayer2.texture;
         renderer.setRenderTarget(waterAndBoundary1);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 0;
@@ -428,6 +566,9 @@ function render() {
         uniforms.shaderStage.value = 6;
         renderer.setRenderTarget(redLayer1);
         renderer.render(scene, camera);
+        uniforms.shaderStage.value = 7;
+        renderer.setRenderTarget(greenLayer1);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
@@ -435,7 +576,7 @@ function render() {
     if(!mouseDown) {
         uniforms.mDown.value = false;
     }
-    uniforms.shaderStage.value = 7;
+    uniforms.shaderStage.value = -1;
     screenToggle = !screenToggle;
     
     renderer.setScissor( sliderPos, 0, window.innerWidth, window.innerHeight );
@@ -446,6 +587,9 @@ function render() {
     uniforms.shaderStage.value = curStage.Stage;
     renderer.render( scene, camera );
     initTime = Date.now();
+    if(mouseDown){
+        uniforms.mousePrior.value.copy(uniforms.mousePos.value);
+    }
 }
  
 render()
