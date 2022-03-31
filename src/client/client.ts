@@ -294,11 +294,21 @@ function logKey(event: KeyboardEvent){
         case 'Digit6':
             curStage.Stage = renderStages[6];
             break;
+        case 'Digit7':
+            curStage.Stage = renderStages[7];
+            break;
+        case 'Digit8':
+            curStage.Stage = renderStages[8];
+            break;
+        case 'Digit9':
+            curStage.Stage = renderStages[9];
+            break;
         case 'Digit0':
             curStage.Stage = renderStages[0];
             break;
-        case 'Digit7':
-            curStage.Stage = renderStages[7];
+        case 'KeyU':
+            curStage.Stage = renderStages[10];
+            break;
     }
 }
 
@@ -427,6 +437,9 @@ const renderStages = [
     5,
     6,
     7,
+    8,
+    9,
+    10,
 ];
 
 const curStage = {Stage: 6};
@@ -444,37 +457,46 @@ uniformFolder.add(uniforms.alpha,"value",0.2,0.5).name('alpha');
 uniformFolder.add(curStage,'Stage',renderStages);
 uniformFolder.add(uniforms.brushRadius,"value",1,100).name('Brush Size');
 
-var params = {color1: "#1861b3",
-              color2: "#175297" };
+var params = {color1w: "#1861b3",
+              color1b: "#175297",
+              color2w: "#1861b3",
+              color2b: "#175297", };
 //var gui = new dat.GUI();
-let color1 = new THREE.Color("#1861b3");
-let color2 = new THREE.Color("#1861b3");
+let colorVec = [
+    new THREE.Color("#1861b3"),
+    new THREE.Color("#1861b3"),
+    new THREE.Color("#1861b3"),
+    new THREE.Color("#1861b3"),
+];
 
-var update = function () {
-    color1 = new THREE.Color( params.color1 );
-    var hex = color1.getHexString();
-    var css = color1.getStyle();
+var update = function (paramColor: string, toChange: number, color_a: number, color_b: number, KSInd: number) {
+    colorVec[toChange] = new THREE.Color( paramColor );
+    var hex = colorVec[toChange].getHexString();
+    var css = colorVec[toChange].getStyle();
     var display = "#"+ hex + " or " + css;
     //$("#colors").append(display+"<br>");
-    KS = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
+    KS[KSInd] = calculateKS(new THREE.Vector3(colorVec[color_a].r, colorVec[color_a].g, colorVec[color_a].b), new THREE.Vector3(colorVec[color_b].r, colorVec[color_b].g, colorVec[color_b].b));
 };
-var update2 = function () {
-    color2 = new THREE.Color( params.color2 );
-    var hex = color2.getHexString();
-    var css = color2.getStyle();
-    var display = "#"+ hex + " or " + css;
-    //$("#colors").append(display+"<br>");
-    KS = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
-};
+// var update2 = function (paramColor: string, color_a: THREE.Color, color_b: THREE.Color) {
+//     color2 = new THREE.Color( paramColor );
+//     var hex = color2.getHexString();
+//     var css = color2.getStyle();
+//     var display = "#"+ hex + " or " + css;
+//     //$("#colors").append(display+"<br>");
+//     KS1 = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
+// };
 
-gui.addColor(params,'color1').onChange(update);
-gui.addColor(params,'color2').onChange(update2);
+gui.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)});
+gui.addColor(params,'color1b').onChange(function () {update(params.color1b,1,0,1,0)});
+gui.addColor(params,'color2w').onChange(function () {update(params.color2w,2,2,3,1)});
+gui.addColor(params,'color2b').onChange(function () {update(params.color2b,3,2,3,1)});
 
 
 let screenToggle = false;
 
 let initTime = Date.now();
-let KS = calculateKS(new THREE.Vector3(0.99,0.1,0.1), new THREE.Vector3(0.8,0.09,0.09));
+let KS = [  calculateKS(new THREE.Vector3(0.1,0.1,0.99), new THREE.Vector3(0.09,0.09,0.8)),
+            calculateKS(new THREE.Vector3(0.99,0.99,0.1), new THREE.Vector3(0.4,0.4,0.09))]
 //console.log(KS);
 
 function render() {
@@ -487,15 +509,19 @@ function render() {
     //console.log(dv);
     //uniforms.dv.value.copy(dv);
     // Render onto our off-screen texture
-    // uniforms.K.value.copy(KS.K);
-    // uniforms.S.value.copy(KS.S);
-    uniforms.K1.value = new Vector3(0.22,1.47,0.57);
-    uniforms.S1.value = new Vector3(0.05,0.003,0.03);
-    uniforms.K2.value = new Vector3(1.62,0.61,1.64);
-    uniforms.S2.value = new Vector3(0.01,0.012,0.003);
+    // uniforms.K1.value.copy(KS[0].K);
+    // uniforms.S1.value.copy(KS[0].S);
+    // uniforms.K2.value.copy(KS[1].K);
+    // uniforms.S2.value.copy(KS[1].S);
+    //Cadmium Yellow
+    uniforms.K1.value = new Vector3(0.10, 0.36, 3.45);
+    uniforms.S1.value = new Vector3(0.97, 0.65, 0.007);
+    //French Ultramarine
+    uniforms.K2.value = new Vector3(0.86, 0.86, 0.06);
+    uniforms.S2.value = new Vector3(0.005, 0.005, 0.09);
     uniforms.paintTexID.value = curColorID.ID;
     
-    uniforms.shaderStage.value = 5;
+    uniforms.shaderStage.value = 2;
     renderer.setClearColor("rgb(0, 0, 0)");
     if(mouseDown) {
         uniforms.mDown.value = true;
@@ -507,6 +533,9 @@ function render() {
         uniforms.reboundTexture.value = waterAndBoundary1.texture;
         uniforms.pigmentTexture1.value = redLayer1.texture;
         uniforms.pigmentTexture2.value = greenLayer1.texture;
+        renderer.setRenderTarget(OtherVecs2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 5;
         renderer.setRenderTarget(waterAndBoundary2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 0;
@@ -514,9 +543,6 @@ function render() {
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 1;
         renderer.setRenderTarget(DiagVecs1);
-        renderer.render(scene, camera);
-        uniforms.shaderStage.value = 2;
-        renderer.setRenderTarget(OtherVecs2);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs1.texture;
         uniforms.diagVecs.value = DiagVecs1.texture;
@@ -531,7 +557,15 @@ function render() {
         renderer.setRenderTarget(redLayer2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 7;
+        uniforms.pigmentTexture1.value = redLayer2.texture;
+        renderer.setRenderTarget(redLayer1);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 8;
         renderer.setRenderTarget(greenLayer2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 9;
+        uniforms.pigmentTexture2.value = greenLayer2.texture;
+        renderer.setRenderTarget(greenLayer1);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
@@ -541,8 +575,11 @@ function render() {
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
         uniforms.reboundTexture.value = waterAndBoundary2.texture;
-        uniforms.pigmentTexture1.value = redLayer2.texture;
-        uniforms.pigmentTexture2.value = greenLayer2.texture;
+        uniforms.pigmentTexture1.value = redLayer1.texture;
+        uniforms.pigmentTexture2.value = greenLayer1.texture;
+        renderer.setRenderTarget(OtherVecs1);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 5;
         renderer.setRenderTarget(waterAndBoundary1);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 0;
@@ -550,9 +587,6 @@ function render() {
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 1;
         renderer.setRenderTarget(DiagVecs1);
-        renderer.render(scene, camera);
-        uniforms.shaderStage.value = 2;
-        renderer.setRenderTarget(OtherVecs1);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs1.texture;
         uniforms.diagVecs.value = DiagVecs1.texture;
@@ -564,9 +598,17 @@ function render() {
         renderer.setRenderTarget(DiagVecs2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 6;
-        renderer.setRenderTarget(redLayer1);
+        renderer.setRenderTarget(redLayer2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 7;
+        uniforms.pigmentTexture1.value = redLayer2.texture;
+        renderer.setRenderTarget(redLayer1);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 8;
+        renderer.setRenderTarget(greenLayer2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 9;
+        uniforms.pigmentTexture2.value = greenLayer2.texture;
         renderer.setRenderTarget(greenLayer1);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;

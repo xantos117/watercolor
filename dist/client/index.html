@@ -143,7 +143,7 @@
             // lattice geometry constants
             float w[9] = float[9](4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,1./36.,1./36.,1./36.);
 
-            float waterEvapRate = 0.01;
+            float waterEvapRate = 0.001;
             float maxWaterCap = 1.;
             float MAX_KAPPA = 2e20;
             //float brushRadius = 50.;
@@ -287,69 +287,113 @@
                 float ptemp = 0.;
                 float nu = 0.01;
                 float toFix = 0.;
+                float ws = reboundVec.r;
+                float wf = reboundVec.g;
+                float kappa = reboundVec.b;
+                float rho = otherVec.a;
+                float rho_p = reboundVec.a;
 
                 float dist = length(getMouseDistance());
                 if(dist < brushRadius && mDown && (pigID == paintTexID)) {   
                     psurf = 1.0;
                 }
                 
-                if(reboundVec.b <= 1.){
-                    if(otherVec.a + reboundVec.r > 1.){
-                        pflow = min((pflow * otherVec.a + psurf * reboundVec.r)/(otherVec.a + reboundVec.r),1.);
-                        psurf = max(psurf - (psurf*reboundVec.r/(otherVec.a + reboundVec.r)),0.);
+                if(kappa <= 1.){
+                    if(rho + wf > 0.){
+                        pflow = min((pflow * rho + psurf * wf)/(rho + wf),1.);
+                        //float dflow = pflow - priorVec.g;
+                        psurf = max(psurf - pflow,0.);
                     }
-
-                    if(reboundVec.b < 10.) {
-                        // already wet
-                        // perhaps velocity should scale this? 
-                        pflow += texture2D(pigTex,vUv - vel).g;
-                    }else {
-                        for(int i = 1; i<5;i++) {
-                            ptemp += stVec[i] * texture2D(pigTex,vUv+e[i]).g;
-                        }
-                        for(int i = 5;i<9;i++) {
-                            ptemp += diagVec[i] * texture2D(pigTex,vUv+e[i]).g;
-                        }
-                        //if(otherVec.a > 1. && ptemp > eta)
-                        ptemp *= (1./otherVec.a);
-                        pflow = pflow + ptemp;
-                    }
+                    
                     //psurf = ptemp;
                     //psurf = max(psurf * reboundVec.r,0.);
 
                     float wloss = reboundVec.a - otherVec.a;
                     float psi = 0.;
-                    if(wloss > 0.)
+                    if(wloss > 0.){
                         psi = abs((reboundVec.a - otherVec.a)/reboundVec.a);
-                    toFix = max(psi * (1.-smoothstep(0.,1.0,otherVec.a)),0.005);
+                        toFix = max(psi * (1.-smoothstep(0.,1.0,otherVec.a)),0.005);
+                    } else {
+                        // out of fluid!
+                        toFix = pflow;
+                    }
                     //toFix = min(toFix,pflow);
-                    pfix = min(pfix + toFix,1.0);
-                    pflow = clamp(pflow-toFix,0.,1.);
+                    if(pflow > toFix){
+                        pfix = min(pfix + toFix,1.0);
+                        pflow = clamp(pflow-toFix,0.,1.);
+                    }
                 }
 
                 fragColor = vec4(clamp(psurf,0.,1.),clamp(pflow,0.,1.),clamp(pfix,0.,1.),1.);
+            }
+
+            void advectPigment(out vec4 fragColor,in sampler2D pigTex, in int pigID){
+                vec2 texel = vec2(1.0/screenWidth, 1.0/screenHeight);
+                vec4 stVec = texture2D(stVecs,vUv);
+                vec4 diagVec = texture2D(diagVecs,vUv);
+                vec4 otherVec = texture2D(otherVecs,vUv);
+                vec4 reboundVec = texture2D(reboundTexture,vUv);
+                vec4 priorVec = texture2D(pigTex,vUv);
+
+                
+                vec2 vel = otherVec.yz * texel;
+                
+                float psurf = priorVec.r;
+                float pflow = priorVec.g;
+                float pfix = priorVec.b;
+                float ptemp = 0.;
+                float nu = 0.01;
+                float toFix = 0.;
+                float ws = reboundVec.r;
+                float wf = reboundVec.g;
+                float kappa = reboundVec.b;
+                float rho = otherVec.a;
+                float rho_p = reboundVec.a;
+
+                if(kappa <= 1.) {
+                    // already wet
+                    // perhaps velocity should scale this? 
+                    if(texture2D(reboundTexture,vUv-vel).b <= 1.){
+                        pflow += texture2D(pigTex,vUv - vel).g;
+                    }
+                }else {
+                    for(int i = 1; i<5;i++) {
+                        ptemp += stVec[i] * texture2D(pigTex,vUv-e[i]).g;
+                    }
+                    for(int i = 5;i<9;i++) {
+                        ptemp += diagVec[i] * texture2D(pigTex,vUv-e[i]).g;
+                    }
+                    if( ptemp > eta){
+                        ptemp *= (1./otherVec.a);
+                        pflow = pflow + ptemp;
+                    }
+                }
+
+                fragColor = vec4(psurf,clamp(pflow,0.,1.),pfix,1.);
             }
 
             void determineBoundary(out vec4 fragColor) {
                 // write out to texture containing values ws, wf, kappa and rho prior
                 vec2 texel = vec2(1.0/screenWidth, 1.0/screenHeight);
                 vec4 otherVec = texture2D(otherVecs,vUv);
+                vec4 reboundVec = texture2D(reboundTexture,vUv);
                 float dist = length(getMouseDistance());
-                float ws = 0.;
+                float ws = reboundVec.r;
                 float wf = 0.;
                 float kappa = 0.;
                 float rho_p = 0.;
                 float rho = otherVec.a;
+                bool block = false;
                 if(dist < brushRadius && mDown) {   
                     ws = 1.0;
+                    block == true;
                 }else{
-                    ws = max(texture2D(reboundTexture,vUv).r - waterEvapRate, 0.);
+                    ws = max(ws - waterEvapRate, 0.);
+                    wf = clamp(ws,0.,max(maxWaterCap - rho,0.));
+                    ws = max(ws - wf, 0.);
                 }
-                wf = clamp(ws,0.,max(maxWaterCap - rho,0.));
-                ws = max(ws - wf, 0.);
-
+                
                 float sumDens = 0.;
-                bool block = false;
                 for(int i = 1;i<9;i++) {
                     sumDens = texture2D(otherVecs,vUv + e[i]*texel).a;
                     if(sumDens > eta) { 
@@ -358,7 +402,7 @@
                 }
                 if(otherVec.a > eta || block) {
                     vec4 pa = texture2D(paperTexture,vUv);
-                    kappa = (pa.r+pa.g+pa.b)/3.; //iqnoise(100.*vUv, 1., 1.);
+                    kappa =  (pa.r+pa.g+pa.b)/3.;//iqnoise(100.*vUv, 1., 1.);
                 } else {
                     kappa = MAX_KAPPA;
                 }
@@ -374,21 +418,21 @@
                 float dist = length(getMouseDistance());
                 vec2 ddv = vec2(0.);
 
-                if(dist < brushRadius && mDown) {  
-                    ddv = (mousePos - mousePrior)/iTime;
-                    float topspeed = length(dv);
-                    float curspeed = length(ddv);
-                    ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
-                    for(int i = 0;i<4;i++){
-                        //stVec[i] = w[i];
-                        stVec[i] = max(dot(e[i+1],ddv),0.0);
-                    }
-                } else {
+                //if(dist < brushRadius && mDown) {  
+                //    ddv = (mousePos - mousePrior)/iTime;
+                //    float topspeed = length(dv);
+                //    float curspeed = length(ddv);
+                //    ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
+                //    for(int i = 0;i<4;i++){
+                //        //stVec[i] = w[i];
+                //        stVec[i] = max(dot(e[i+1],ddv),0.0);
+                //    }
+                //} else {
 
-                    vec4 tex1 = texture2D(stVecs,vUv - e[1]*texel);
-                    vec4 tex2 = texture2D(stVecs,vUv - e[2]*texel);
-                    vec4 tex3 = texture2D(stVecs,vUv - e[3]*texel);
-                    vec4 tex4 = texture2D(stVecs,vUv - e[4]*texel);
+                    vec4 tex1 = texture2D(stVecs,vUv + e[1]*texel);
+                    vec4 tex2 = texture2D(stVecs,vUv + e[2]*texel);
+                    vec4 tex3 = texture2D(stVecs,vUv + e[3]*texel);
+                    vec4 tex4 = texture2D(stVecs,vUv + e[4]*texel);
                     vec4 reb1 = texture2D(reboundTexture,vUv - e[1]*texel);
                     vec4 reb2 = texture2D(reboundTexture,vUv - e[2]*texel);
                     vec4 reb3 = texture2D(reboundTexture,vUv - e[3]*texel);
@@ -422,7 +466,7 @@
                     //fragColor.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
                     //fragColor.b = float(rebound.b < 10.) * tex3.b + float(rebound.b > 10.) * tex1.r;
                     //fragColor.a = float(rebound.b < 10.) * tex4.a + float(rebound.b > 10.) * tex2.g;
-                }
+                //}
 
                 fragColor = stVec;
             }
@@ -435,16 +479,16 @@
                 float dist = length(getMouseDistance());
                 vec2 ddv = vec2(0.);
 
-                if(dist < brushRadius && mDown) {  
-                    ddv = (mousePos - mousePrior)/iTime; 
-                    float topspeed = length(dv);
-                    float curspeed = length(ddv);
-                    ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
-                    for(int i = 0;i<4;i++){
-                        //diagVec[i] = w[i+5];
-                        diagVec[i] = max(dot(e[i+5],ddv),0.0);
-                    }
-                } else {
+                //if(dist < brushRadius && mDown) {  
+                    //ddv = (mousePos - mousePrior)/iTime; 
+                    //float topspeed = length(dv);
+                    //float curspeed = length(ddv);
+                    //ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
+                    //for(int i = 0;i<4;i++){
+                    //    //diagVec[i] = w[i+5];
+                    //    diagVec[i] = max(dot(e[i+5],ddv),0.0);
+                    //}
+                //} else {
                     vec4 tex1 = texture2D(diagVecs,vUv - e[5]*texel);
                     vec4 tex2 = texture2D(diagVecs,vUv - e[6]*texel);
                     vec4 tex3 = texture2D(diagVecs,vUv - e[7]*texel);
@@ -463,13 +507,11 @@
                     }else {
                         diagVec.g = float(rebound.b <= 1.) * tex2.g + float(rebound.b > 1.) * tex4.a;
                     }
-
                     if(kap3<=1.){
                         diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
                     }else {
                         diagVec.b = float(rebound.b <= 1.) * tex3.b + float(rebound.b > 1.) * tex1.r;
                     }
-
                     if(kap4<=1.){
                         diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
                     }else {
@@ -480,7 +522,7 @@
                     //diagVec.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
                     //diagVec.b = float(rebound.b < 10.) * tex3.b + float(rebound.b > 10.) * tex1.r;
                     //diagVec.a = float(rebound.b < 10.) * tex4.a + float(rebound.b > 10.) * tex2.g;
-                }
+                //}
 
                 fragColor = diagVec;
             }
@@ -490,23 +532,36 @@
                 vec4 stVec = texture2D(stVecs,vUv);
                 vec4 diagVec = texture2D(diagVecs,vUv);
                 vec4 otherVec = texture2D(otherVecs,vUv);
+                vec4 reboundVec = texture2D(reboundTexture,vUv);
 
                 float dist = length(getMouseDistance());
 
                 float rho = 0.;
-                if(dist < brushRadius && mDown) {   
-                    rho = 1.0;
-                    //otherVec.r = w[0];
-                }
-                else {
-                    rho = stVec.r + stVec.g + stVec.b + stVec.a + diagVec.r + diagVec.g + diagVec.b + diagVec.a + otherVec.r;
-                    rho *= 0.995;
-                }
+                //if(dist < brushRadius && mDown) {   
+                //    rho = 1.0;
+                //    otherVec.r = 1.0;
+                //}
+                //else {
+                //    //rho *= 0.995;
+                //}
+                vec2 ddv = vec2(0.);
 
+                rho = stVec.r + stVec.g + stVec.b + stVec.a + diagVec.r + diagVec.g + diagVec.b + diagVec.a + otherVec.r;
+                
                 vec2 u = e[1] * stVec.r + e[2] * stVec.g + e[3] * stVec.b + e[4] * stVec.a + e[5] * diagVec.r + e[6] * diagVec.g + e[7] * diagVec.b + e[8] * diagVec.a; 
                 u *= (1./rho0);
+                if(dist < brushRadius && mDown) {  
+                    ddv = (mousePos - mousePrior)/iTime;
+                    float topspeed = length(dv);
+                    float curspeed = length(ddv);
+                    if(curspeed > 0.){
+                        ddv = normalize(ddv) * ((curspeed/topspeed)*0.05 + 0.05);
+                        u = u + ddv;
+                    }
+                    rho = 1.0;
+                }
 
-                fragColor = vec4(relaxExplicit(otherVec.r,0,u,rho), u.x, u.y, rho);
+                fragColor = vec4(relaxExplicit(otherVec.r,0,u,rho+reboundVec.g), u.x, u.y, rho+reboundVec.g);
             }
 
             void relaxPlus(out vec4 fragColor) {
@@ -552,8 +607,9 @@
             }
 
             void drawUv(out vec4 fragColor){
-                vec4 height = texture2D(paperTexture,vUv);
-                fragColor = height;//vec4(height,height,height,1.0);
+                //vec4 height = texture2D(paperTexture,vUv);
+                //fragColor = height;//vec4(height,height,height,1.0);u
+                fragColor = vec4(texture2D(otherVecs,vUv).yz,0.0,1.0);
             }
 
             vec3 reflKM(in vec3 R1, in vec3 R2, in vec3 T1, in vec3 T2){
@@ -575,24 +631,26 @@
                 vec3[3] smix = vec3[3](S1 * thick1.r + S2 * thick2.r,
                                  S1 * thick1.g + S2 * thick2.g,
                                  S1 * thick1.b + S2 * thick2.b);
-                vec3 R = 1. + kmix[2]/smix[2] - sqrt((kmix[2]/smix[2]) * (kmix[2]/smix[2]) + 2. * (kmix[2]/smix[2]));
+                //vec3 R = 1. + kmix[2]/smix[2] - sqrt((kmix[2]/smix[2]) * (kmix[2]/smix[2]) + 2. * (kmix[2]/smix[2]));
                 vec3 T = vec3(0.);
                 vec3 a = 1. + (kmix[2]/smix[2]);
                 vec3 b = sqrt(a*a - 1.);
                 vec3 bsd = b*smix[2]*thick[2];
                 vec3 c = a * sinh(bsd) + b * cosh(bsd);
+                vec3 R = 1./(a + (b * tanh(1./bsd)));
                 T = b/c;
 
-                for(int i = 1;i<=0;i--){
+                for(int i = 1;i>0;i--){
                     a = 1. + (kmix[i]/smix[i]);
                     b = sqrt(a*a - 1.);
                     bsd = b*smix[i]*thick[i];
                     c = a * sinh(bsd) + b * cosh(bsd);
-                    vec3 rTemp = sinh(bsd/c);
+                    vec3 rTemp = 1./(a + b * tanh(1./bsd));
                     vec3 tTemp = b/c;
                     R = reflKM(R, rTemp, T, tTemp);
                     T = transKM(R, rTemp, T, tTemp);
                 }
+
                 vec3 paper = T * texture2D(paperTexture,vUv).rgb;
                 //vec3 R = 1. + (K/S) - sqrt((K/S) * (K/S) + 2. * (K/S));
                 fragColor = vec4(R+paper,d);
@@ -623,9 +681,15 @@
                         flowPigment(gl_FragColor,pigmentTexture1,1);
                         break;
                     case 7:
-                        flowPigment(gl_FragColor,pigmentTexture2,2);
+                        advectPigment(gl_FragColor,pigmentTexture1,1);
                         break;
                     case 8:
+                        flowPigment(gl_FragColor,pigmentTexture2,2);
+                        break;
+                    case 9:
+                        advectPigment(gl_FragColor,pigmentTexture2,2);
+                        break;
+                    case 10:
                         drawUv(gl_FragColor);
                         break;
                     default:
