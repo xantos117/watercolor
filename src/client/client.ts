@@ -8,6 +8,8 @@ let mouseDown = false;
 let mouse = new THREE.Vector3(0,0,1);
 let canvasWidth = window.innerWidth;
 let canvasHeight = window.innerHeight;
+let texcanvasWidth = canvasWidth;
+let texcanvasHeight = canvasHeight;
 let blankTextureData = new Float32Array(4*canvasWidth*canvasHeight);
 blankTextureData.forEach(() => Math.random());
 let initTex = new THREE.DataTexture(blankTextureData,canvasWidth,canvasHeight,THREE.RGBAFormat,THREE.FloatType);
@@ -52,67 +54,67 @@ let Texture2 = new THREE.WebGLRenderTarget(canvasWidth/2, canvasHeight/2,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
-let StVecs1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let StVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let DiagVecs1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let DiagVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let OtherVecs1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-
-let waterAndBoundary1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let OtherVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
-let redLayer1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let waterAndBoundary1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
-let greenLayer1 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let redLayer1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
-let StVecs2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let greenLayer1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let DiagVecs2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+
+let StVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let OtherVecs2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let DiagVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
+    {minFilter: THREE.LinearFilter,
+     magFilter: THREE.LinearFilter,
+     format: THREE.RGBAFormat,
+     type: THREE.FloatType});
+let OtherVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType}); 
 
-let waterAndBoundary2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let waterAndBoundary2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let redLayer2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let redLayer2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
-let greenLayer2 = new THREE.WebGLRenderTarget(canvasWidth, canvasHeight,
+let greenLayer2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
     {minFilter: THREE.LinearFilter,
      magFilter: THREE.LinearFilter,
      format: THREE.RGBAFormat,
@@ -169,7 +171,7 @@ let uniforms = {
     rho0: {value: 1.0},
     c: {value: 1.0},
     alpha: {value: 0.3},
-    eta: {value: 0.001},
+    eta: {value: 0.0005},
     ink: {value: false},
     brushRadius: {value: 10.},
     dv: {value: new THREE.Vector2()},
@@ -509,16 +511,16 @@ function render() {
     //console.log(dv);
     //uniforms.dv.value.copy(dv);
     // Render onto our off-screen texture
-    // uniforms.K1.value.copy(KS[0].K);
-    // uniforms.S1.value.copy(KS[0].S);
-    // uniforms.K2.value.copy(KS[1].K);
-    // uniforms.S2.value.copy(KS[1].S);
+    uniforms.K1.value.copy(KS[0].K);
+    uniforms.S1.value.copy(KS[0].S);
+    uniforms.K2.value.copy(KS[1].K);
+    uniforms.S2.value.copy(KS[1].S);
     //Cadmium Yellow
-    uniforms.K1.value = new Vector3(0.10, 0.36, 3.45);
-    uniforms.S1.value = new Vector3(0.97, 0.65, 0.007);
-    //French Ultramarine
-    uniforms.K2.value = new Vector3(0.86, 0.86, 0.06);
-    uniforms.S2.value = new Vector3(0.005, 0.005, 0.09);
+    //uniforms.K2.value = new Vector3(0.10, 0.36, 3.45);
+    //uniforms.S2.value = new Vector3(0.97, 0.65, 0.007);
+    ////French Ultramarine
+    //uniforms.K1.value = new Vector3(0.86, 0.86, 0.06);
+    //uniforms.S1.value = new Vector3(0.005, 0.005, 0.09);
     uniforms.paintTexID.value = curColorID.ID;
     
     uniforms.shaderStage.value = 2;
