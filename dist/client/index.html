@@ -88,9 +88,12 @@
                 }
                 
             }
+            void downFlow(out vec4 fragColor) {
+                fragColor = vec4(0.,0.,1.,0.);
+            }
             
             void main() {
-                mainImage(gl_FragColor);
+                downFlow(gl_FragColor);
             }
           </script>
           <script id="fragment-screen" type="x-shader/x-fragment">
@@ -147,7 +150,7 @@
             float boundEvapRate = 5e-5;
             float maxWaterCap = 1.;
             float MAX_KAPPA = 2e20;
-            float granGam = 1.0;
+            float granGam = 0.3;
             //float brushRadius = 50.;
 
             //	<https://www.shadertoy.com/view/Xd23Dh>
@@ -455,21 +458,25 @@
                         stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
                     }else {
                         stVec.r = float(rebound.b <= 1.) * tex1.r + float(rebound.b > 1.) * tex3.b;
+                        stVec.r = max(stVec.r - boundEvapRate,0.);
                     }
                     if(kap2<=1.){
                         stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
                     }else {
                         stVec.g = float(rebound.b <= 1.) * tex2.g + float(rebound.b > 1.) * tex4.a;
+                        stVec.g = max(stVec.g - boundEvapRate,0.);
                     }
                     if(kap3<=1.){
                         stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
                     }else {
                         stVec.b = float(rebound.b <= 1.) * tex3.b + float(rebound.b > 1.) * tex1.r;
+                        stVec.b = max(stVec.b - boundEvapRate,0.);
                     }
                     if(kap4<=1.){
                         stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
                     }else {
                         stVec.a = float(rebound.b <= 1.) * tex4.a + float(rebound.b > 1.) * tex2.g;
+                        stVec.a = max(stVec.a - boundEvapRate,0.);
                     }
 
                     //fragColor.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;
@@ -511,21 +518,25 @@
                         diagVec.r = (kap1) * diagVec.r + (1.-kap1) * tex3.b;
                     } else {
                         diagVec.r = float(rebound.b <= 1.) * tex1.r + float(rebound.b > 1.) * tex3.b;
+                        diagVec.r = max(diagVec.r - boundEvapRate,0.);
                     }
                     if(kap2<=1.){
                         diagVec.g = (kap2) * diagVec.g + (1.-kap2) * tex4.a;
                     }else {
                         diagVec.g = float(rebound.b <= 1.) * tex2.g + float(rebound.b > 1.) * tex4.a;
+                        diagVec.g = max(diagVec.g - boundEvapRate,0.);
                     }
                     if(kap3<=1.){
                         diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
                     }else {
                         diagVec.b = float(rebound.b <= 1.) * tex3.b + float(rebound.b > 1.) * tex1.r;
+                        diagVec.b = max(diagVec.b - boundEvapRate,0.);
                     }
                     if(kap4<=1.){
                         diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
                     }else {
                         diagVec.a = float(rebound.b <= 1.) * tex4.a + float(rebound.b > 1.) * tex2.g;
+                        diagVec.a = max(diagVec.a - boundEvapRate,0.);
                     }
 
                     //diagVec.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;

@@ -21,6 +21,7 @@ let isInked = false;
 let sliderSelected = false;
 
 let scene = new THREE.Scene();
+let initScene = new THREE.Scene();
 
 let camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -10000, 10000);
 camera.position.z = 100;
@@ -144,8 +145,8 @@ texture.minFilter = THREE.NearestFilter;
 texture.magFilter = THREE.NearestFilter;
 texture.wrapS = THREE.RepeatWrapping;
 texture.wrapT = THREE.RepeatWrapping;
-PaperTexture.minFilter = THREE.NearestFilter;
-PaperTexture.magFilter = THREE.NearestFilter;
+PaperTexture.minFilter = THREE.LinearFilter;
+PaperTexture.magFilter = THREE.LinearFilter;
 PaperTexture.wrapS = THREE.RepeatWrapping;
 PaperTexture.wrapT = THREE.RepeatWrapping;
 
@@ -410,6 +411,8 @@ paperMat.map = bufferTexture.texture;
 paperMat.map.wrapS = THREE.RepeatWrapping;
 paperMat.map.wrapT = THREE.RepeatWrapping;
 
+const paperInitObj = new THREE.Mesh(geometry,shaderMat);
+
 const paperObj1 = new THREE.Mesh(geometry, shaderMat2);
 const paperObj2 = new THREE.Mesh(geometry, shaderMat3);
 
@@ -417,6 +420,7 @@ const cube = new THREE.Mesh(geometry, shaderMat);
 
 bufferScene.add(paperObj2);
 scene.add(paperObj1);
+initScene.add(paperInitObj);
 
 const colorSet = { 
     red: new THREE.Vector4(1,0,0,1),
@@ -500,6 +504,9 @@ let initTime = Date.now();
 let KS = [  calculateKS(new THREE.Vector3(0.1,0.1,0.99), new THREE.Vector3(0.09,0.09,0.8)),
             calculateKS(new THREE.Vector3(0.99,0.99,0.1), new THREE.Vector3(0.4,0.4,0.09))]
 //console.log(KS);
+
+// renderer.setRenderTarget(StVecs2);
+// renderer.render(initScene, camera);
 
 function render() {
     requestAnimationFrame( render );
