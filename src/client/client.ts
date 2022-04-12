@@ -4,6 +4,7 @@ import { GUI } from 'lil-gui'
 import { Vector3, Vector4, WebGLRenderTarget } from 'three';
 import * as quickEx from './quick_example.js'
 
+let Pressure = require('pressure');
 let redArray: Array<number> = [];
 quickEx.Module['onRuntimeInitialized'] = function() {
       var retVector = quickEx.Module.mixbox_vec_srgb8_to_latent(255, 10, 10);
@@ -223,6 +224,21 @@ function initSlider() {
 
 initSlider();
 
+let pressVal = 0;
+
+renderer.domElement.className = '.canvas';
+Pressure.set(renderer.domElement, {
+    change: function(force: number){
+        pressVal = force;
+        //console.log(force);
+        if(usePressure.value){
+            uniforms.brushRadius.value = 0.5 * brushRadius.value + brushRadius.value * force;
+        }else{
+            uniforms.brushRadius.value = brushRadius.value;
+        }
+    }
+});
+
 function doMouseMove(event: MouseEvent)
 {
     mouse.x = event.pageX
@@ -418,6 +434,7 @@ const colorIDs = [
     1,
     2,
 ];
+let brushRadius = {value: 10};
 
 const renderStages = [
     0,
@@ -439,6 +456,8 @@ const renderStages = [
 
 const curStage = {Stage: 6};
 
+let usePressure = {value: false};
+
 const gui = new GUI();
 const colorFolder = gui.addFolder('Color');
 colorFolder.add(curColor,'Color',colorSet);
@@ -452,8 +471,9 @@ uniformFolder.add(uniforms.alpha,"value",0.2,0.5).name('alpha');
 uniformFolder.add(uniforms.tau,"value",0,1).name('tau');
 uniformFolder.add(uniforms.granGam,"value",0,1).name('Granulation');
 uniformFolder.add(uniforms.theta,"value",0,1).name('Theta');
+uniformFolder.add(usePressure, "value").name('Pressure');
 uniformFolder.add(curStage,'Stage',renderStages).listen();
-uniformFolder.add(uniforms.brushRadius,"value",1,100).name('Brush Size');
+uniformFolder.add(brushRadius,"value",1,100).name('Brush Size');
 
 var params = {color1w: "#1861b3",
               color1b: "#175297",
