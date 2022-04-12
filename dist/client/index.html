@@ -113,6 +113,8 @@
             uniform sampler2D reboundTexture;
             uniform sampler2D pigmentTexture1;
             uniform sampler2D pigmentTexture2;
+            uniform sampler2D pigmentTexture3;
+            uniform sampler2D pigmentTexture4;
             uniform vec2 mousePrior;
             uniform vec2 mousePos;
             uniform float screenWidth;
@@ -126,7 +128,12 @@
             uniform float alpha;
             uniform float eta;
             uniform bool ink;
+            uniform float tau;
+            uniform float granGam;
+            uniform float theta;
             uniform float brushRadius;
+            uniform vec4 pigCon;
+            uniform vec4 latent;
             uniform vec2 dv;
             uniform vec3 K1;
             uniform vec3 S1;
@@ -134,7 +141,7 @@
             uniform vec3 S2;
 
             // lattice direction vectors
-            vec2 e[9] = vec2[9](vec2(0,0),
+            const vec2 e[9] = vec2[9](vec2(0,0),
                         vec2(1,0),
                         vec2(0,1),
                         vec2(-1,0),
@@ -144,14 +151,12 @@
                         vec2(-1,-1),
                         vec2(1,-1));
             // lattice geometry constants
-            float w[9] = float[9](4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,1./36.,1./36.,1./36.);
+            const float w[9] = float[9](4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,1./36.,1./36.,1./36.);
 
-            float waterEvapRate = 0.0005;
-            float boundEvapRate = 5e-5;
-            float maxWaterCap = 1.;
-            float MAX_KAPPA = 2e20;
-            float granGam = 0.3;
-            //float brushRadius = 50.;
+            const float waterEvapRate = 0.0005;
+            const float boundEvapRate = 5e-5;
+            const float maxWaterCap = 1.;
+            const float MAX_KAPPA = 2e20;
 
             //	<https://www.shadertoy.com/view/Xd23Dh>
             //	by inigo quilez <http://iquilezles.org/www/articles/voronoise/voronoise.htm>
@@ -285,6 +290,7 @@
 
                 
                 vec2 vel = otherVec.yz;
+                float speed = abs(length(vel));
                 
                 float psurf = priorVec.r;
                 float pflow = priorVec.g;
@@ -299,8 +305,8 @@
                 float rho_p = otherVec.a;
 
                 float dist = length(getMouseDistance());
-                if(dist < brushRadius && mDown && (pigID == paintTexID)) {   
-                    psurf = 1.0;
+                if(dist < brushRadius && mDown && pigID == paintTexID) {   
+                    psurf = 1.0;// pigCon[pigID-1];
                 }
                 
                 if(kappa <= 1.){
@@ -315,25 +321,33 @@
 
                     float wloss = rho_p - rho;
                     float psi = 0.;
-                    if(wloss > 0.){
+                    if(rho > 0.){
                         psi = abs((wloss)/rho_p);
-                        toFix = pflow * (1. - kappa * granGam) * max(psi * (1.-smoothstep(0.,1.0,rho)),0.005);
+                        //toFix = pflow * (1. - kappa * granGam) * max(psi * (1.-smoothstep(0.,1.0,rho)),0.05 * iTime);// - float(speed > tau*iTime) * (theta * rho * pfix);
+                        toFix = (pflow * max(psi * (1.-smoothstep(0.,1.0,rho)),0.005*iTime)) - float(speed > tau*iTime) * (theta * rho * pfix);
                     } else {
                         // out of fluid!
-                        toFix = 0.0005;
+                        toFix = pflow;
                     }
+                    
                     //toFix = min(toFix,pflow);
                     if(pflow > toFix){
-                        pflow = clamp(pflow-toFix,0.,1.);
-                        pfix = pfix + toFix;
+                        pflow = mix(pflow - toFix, pflow + toFix, float(speed > tau*iTime));
+                        pfix = mix(pfix + toFix, pfix - toFix, float(speed > tau*iTime));
                     }
                     else {
-                        pfix = pfix + pflow;
+                        pfix = mix(pfix - toFix,pfix + pflow, float(speed <= tau*iTime));
+                        pflow = mix(0.,toFix,float(speed <= tau*iTime));
+                    }
+                }else {
+                    if(wf==0. && rho==0.){
+                        pfix += pflow;
                         pflow = 0.;
                     }
                 }
 
                 fragColor = vec4(clamp(psurf,0.,1.),clamp(pflow,0.,1.),clamp(pfix,0.,1.),1.);
+                //fragColor = vec4(psurf,pflow,pfix,1.);
             }
 
             void advectPigment(out vec4 fragColor,in sampler2D pigTex, in int pigID){
@@ -358,7 +372,16 @@
                 float kappa = reboundVec.b;
                 float rho_p = otherVec.a;
                 float rho = reboundVec.a;
+                
+                for(int i = 1; i<5;i++) {
+                    ptemp += stVec[i] * texture2D(pigTex,vUv-e[i]).g * 2.;
+                }
+                for(int i = 5;i<9;i++) {
+                    ptemp += diagVec[i] * texture2D(pigTex,vUv-e[i]).g * 2.;
+                }
+                //ptemp *= (1./rho);
 
+                float t = float(int(ptemp > eta && wf > 0.));
                 if(kappa <= 1.) {
                     // already wet
                     // perhaps velocity should scale this? 
@@ -366,19 +389,13 @@
                         pflow = texture2D(pigTex,vUv - vel).g;
                     }
                 }else {
-                    for(int i = 1; i<5;i++) {
-                        ptemp += stVec[i] * texture2D(pigTex,vUv-e[i]).g;
-                    }
-                    for(int i = 5;i<9;i++) {
-                        ptemp += diagVec[i] * texture2D(pigTex,vUv-e[i]).g;
-                    }
-                    if( ptemp > eta){
-                        ptemp *= (1./rho);
-                        pflow = ptemp;
-                    }
+                    pflow = pflow + t * ptemp;
+                    //if(ptemp > eta){
+                    //    pflow += ptemp;
+                    //}
                 }
 
-                fragColor = vec4(psurf,clamp(pflow,0.,1.),pfix,1.);
+                fragColor = vec4(psurf,pflow,pfix,1.);
             }
 
             void determineBoundary(out vec4 fragColor) {
@@ -450,34 +467,27 @@
                     vec4 reb2 = texture2D(reboundTexture,vUv - e[2]*texel);
                     vec4 reb3 = texture2D(reboundTexture,vUv - e[3]*texel);
                     vec4 reb4 = texture2D(reboundTexture,vUv - e[4]*texel);
-                    float kap1 = (reb1.b + rebound.b)/2.;
-                    float kap2 = (reb2.b + rebound.b)/2.;
-                    float kap3 = (reb3.b + rebound.b)/2.;
-                    float kap4 = (reb4.b + rebound.b)/2.;
-                    if(kap1<=1.){
-                        stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
-                    }else {
-                        stVec.r = float(rebound.b <= 1.) * tex1.r + float(rebound.b > 1.) * tex3.b;
-                        stVec.r = max(stVec.r - boundEvapRate,0.);
-                    }
-                    if(kap2<=1.){
-                        stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
-                    }else {
-                        stVec.g = float(rebound.b <= 1.) * tex2.g + float(rebound.b > 1.) * tex4.a;
-                        stVec.g = max(stVec.g - boundEvapRate,0.);
-                    }
-                    if(kap3<=1.){
-                        stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
-                    }else {
-                        stVec.b = float(rebound.b <= 1.) * tex3.b + float(rebound.b > 1.) * tex1.r;
-                        stVec.b = max(stVec.b - boundEvapRate,0.);
-                    }
-                    if(kap4<=1.){
-                        stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
-                    }else {
-                        stVec.a = float(rebound.b <= 1.) * tex4.a + float(rebound.b > 1.) * tex2.g;
-                        stVec.a = max(stVec.a - boundEvapRate,0.);
-                    }
+                    float kap1 = min((rebound.b + reb3.b)/2.,1.0);
+                    float kap2 = min((rebound.b + reb4.b)/2.,1.0);
+                    float kap3 = min((rebound.b + reb1.b)/2.,1.0);
+                    float kap4 = min((rebound.b + reb2.b)/2.,1.0);
+
+                    stVec.r = float(rebound.b <= 1.) * ((kap1) * stVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
+                    //stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
+                    stVec.r = float(rebound.b <= 1.) * max(stVec.r - float(kap1==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.r;
+
+                    stVec.g = float(rebound.b <= 1.) * ((kap2) * stVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
+                    //stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
+                    stVec.g = float(rebound.b <= 1.) * max(stVec.g - float(kap2==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.g;
+
+                    stVec.b = float(rebound.b <= 1.) * ((kap3) * stVec.b + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
+                    //stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
+                    stVec.b = float(rebound.b <= 1.) * max(stVec.b - float(kap3==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.b;
+
+                    stVec.a = float(rebound.b <= 1.) * ((kap4) * stVec.a + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
+                    //stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
+                    stVec.a = float(rebound.b <= 1.) * max(stVec.a - float(kap4==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.a;
+
 
                     //fragColor.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;
                     //fragColor.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
@@ -510,34 +520,30 @@
                     vec4 tex2 = texture2D(diagVecs,vUv - e[6]*texel);
                     vec4 tex3 = texture2D(diagVecs,vUv - e[7]*texel);
                     vec4 tex4 = texture2D(diagVecs,vUv - e[8]*texel);
-                    float kap1 = (texture2D(reboundTexture,vUv - e[5]*texel).b + rebound.b)/2.;
-                    float kap2 = (texture2D(reboundTexture,vUv - e[6]*texel).b + rebound.b)/2.;
-                    float kap3 = (texture2D(reboundTexture,vUv - e[7]*texel).b + rebound.b)/2.;
-                    float kap4 = (texture2D(reboundTexture,vUv - e[8]*texel).b + rebound.b)/2.;
-                    if(kap1<=1.){
-                        diagVec.r = (kap1) * diagVec.r + (1.-kap1) * tex3.b;
-                    } else {
-                        diagVec.r = float(rebound.b <= 1.) * tex1.r + float(rebound.b > 1.) * tex3.b;
-                        diagVec.r = max(diagVec.r - boundEvapRate,0.);
-                    }
-                    if(kap2<=1.){
-                        diagVec.g = (kap2) * diagVec.g + (1.-kap2) * tex4.a;
-                    }else {
-                        diagVec.g = float(rebound.b <= 1.) * tex2.g + float(rebound.b > 1.) * tex4.a;
-                        diagVec.g = max(diagVec.g - boundEvapRate,0.);
-                    }
-                    if(kap3<=1.){
-                        diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
-                    }else {
-                        diagVec.b = float(rebound.b <= 1.) * tex3.b + float(rebound.b > 1.) * tex1.r;
-                        diagVec.b = max(diagVec.b - boundEvapRate,0.);
-                    }
-                    if(kap4<=1.){
-                        diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
-                    }else {
-                        diagVec.a = float(rebound.b <= 1.) * tex4.a + float(rebound.b > 1.) * tex2.g;
-                        diagVec.a = max(diagVec.a - boundEvapRate,0.);
-                    }
+                    vec4 reb1 = texture2D(reboundTexture,vUv - e[5]*texel);
+                    vec4 reb2 = texture2D(reboundTexture,vUv - e[6]*texel);
+                    vec4 reb3 = texture2D(reboundTexture,vUv - e[7]*texel);
+                    vec4 reb4 = texture2D(reboundTexture,vUv - e[8]*texel);
+                    float kap1 = min((rebound.b + reb3.b)/2.,1.0);
+                    float kap2 = min((rebound.b + reb4.b)/2.,1.0);
+                    float kap3 = min((rebound.b + reb1.b)/2.,1.0);
+                    float kap4 = min((rebound.b + reb2.b)/2.,1.0);
+
+                    diagVec.r = float(rebound.b <= 1.) * ((kap1) * diagVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
+                    //diagVec.r = (kap1) * diagVec.r + (1.-kap1) * tex3.b;
+                    diagVec.r = float(rebound.b <= 1.) * max(diagVec.r - float(kap1==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.r;
+
+                    diagVec.g = float(rebound.b <= 1.) * ((kap2) * diagVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
+                    //diagVec.g = (kap2) * diagVec.g + (1.-kap2) * tex4.a;
+                    diagVec.g = float(rebound.b <= 1.) * max(diagVec.g - float(kap2==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.g;
+
+                    diagVec.b = float(rebound.b <= 1.) * ((kap3) * diagVec.r + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
+                    //diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
+                    diagVec.b = float(rebound.b <= 1.) * max(diagVec.b - float(kap3==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.b;
+
+                    diagVec.a = float(rebound.b <= 1.) * ((kap4) * diagVec.r + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
+                    //diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
+                    diagVec.a = float(rebound.b <= 1.) * max(diagVec.a - float(kap4==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.a;
 
                     //diagVec.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;
                     //diagVec.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
@@ -576,7 +582,7 @@
                     float topspeed = length(dv);
                     float curspeed = length(ddv);
                     if(curspeed > 0.){
-                        ddv = normalize(ddv) * ((curspeed/topspeed)*0.05 + 0.05);
+                        ddv = normalize(ddv) * ((curspeed/topspeed));
                         u = u + ddv;
                     }
                 }
@@ -627,14 +633,106 @@
             }
 
             void drawUv(out vec4 fragColor){
-                //vec4 height = texture2D(paperTexture,vUv);
+                vec4 height = vec4(iqnoise(100.*vUv, 1., 1.));
                 //fragColor = height;//vec4(height,height,height,1.0);u
                 //fragColor = vec4(texture2D(otherVecs,vUv).yz,0.0,1.0);
-                vec4 reboundVec = texture2D(reboundTexture,vUv);
-                vec4 otherVec = texture2D(otherVecs,vUv);
+                //vec4 reboundVec = texture2D(reboundTexture,vUv);
+                //vec4 otherVec = texture2D(otherVecs,vUv);
                 //float sumVec = stVec.r + stVec.g + stVec.b + stVec.a;
-                float bVal = reboundVec.a;
-                fragColor = vec4(bVal,bVal,bVal,1.0);
+                //float bVal = reboundVec.a;
+                vec4 color1 = vec4(1.0,0.1,0.1,1.0);
+                float sumVec = (height.r + height.g + height.b)/3.;
+                vec4 outColor = mix(color1, height, float(sumVec > 0.5));
+                fragColor = outColor;
+            }
+
+            vec3 coefs[20] = vec3[20](
+                vec3(1.0*+0.07717053,1.0*+0.02826978,1.0*+0.24832992),
+                vec3(1.0*+0.95912302,1.0*+0.80256528,1.0*+0.03561839),
+                vec3(1.0*+0.74683774,1.0*+0.04868586,1.0*+0.00000000),
+                vec3(1.0*+0.99518138,1.0*+0.99978149,1.0*+0.99704802),
+                vec3(3.0*+0.01606382,3.0*+0.27787927,3.0*+0.10838459),
+                vec3(3.0*-0.22715650,3.0*+0.48702601,3.0*+0.35660312),
+                vec3(3.0*+0.09019473,3.0*-0.05108290,3.0*+0.66245019),
+                vec3(3.0*+0.26826063,3.0*+0.22364570,3.0*+0.06141500),
+                vec3(3.0*-0.11677001,3.0*+0.45951942,3.0*+1.22955000),
+                vec3(3.0*+0.35042682,3.0*+0.65938413,3.0*+0.94329691),
+                vec3(3.0*+1.07202375,3.0*+0.27090076,3.0*+0.34461513),
+                vec3(3.0*+0.92964458,3.0*+0.13855183,3.0*-0.01495765),
+                vec3(3.0*+1.00720859,3.0*+0.85124701,3.0*+0.10922038),
+                vec3(3.0*+0.98374897,3.0*+0.93733704,3.0*+0.39192814),
+                vec3(3.0*+0.94225681,3.0*+0.26644346,3.0*+0.60571754),
+                vec3(3.0*+0.99897033,3.0*+0.40864351,3.0*+0.60217887),
+                vec3(6.0*+0.31232351,6.0*+0.34171197,6.0*-0.04972666),
+                vec3(6.0*+0.42768261,6.0*+1.17238033,6.0*+0.10429229),
+                vec3(6.0*+0.68054914,6.0*-0.23401393,6.0*+0.35832587),
+                vec3(6.0*+1.00013113,6.0*+0.42592007,6.0*+0.31789917)
+            );
+
+            void mixbox(vec4 c,out vec3 rgb)
+            { 
+                float c00 = c[0]*c[0];
+                float c11 = c[1]*c[1];
+                float c22 = c[2]*c[2];
+                float c33 = c[3]*c[3];
+                float c01 = c[0]*c[1];
+                float c02 = c[0]*c[2];
+
+                float weights[20] = 
+                            float[20](
+                                c[0]*c00,
+                                c[1]*c11,
+                                c[2]*c22,
+                                c[3]*c33,
+                                c00*c[1],
+                                c01*c[1],
+                                c00*c[2],
+                                c02*c[2],
+                                c00*c[3],
+                                c[0]*c33,
+                                c11*c[2],
+                                c[1]*c22,
+                                c11*c[3],
+                                c[1]*c33,
+                                c22*c[3],
+                                c[2]*c33,
+                                c01*c[2],
+                                c01*c[3],
+                                c02*c[3],
+                                c[1]*c[2]*c[3]
+                            );
+
+                for(int i=0;i<3;i++) { rgb[i] = 0.0; }  
+
+                for(int j=0;j<20;j++)
+                    for(int i=0;i<3;i++)
+                    {
+                        rgb[i] += weights[j]*coefs[j][i];
+                    }
+            }
+
+            void getMixColor(out vec4 fragColor) {
+                vec4 thick1 = texture2D(pigmentTexture1,vUv);
+                vec4 thick2 = texture2D(pigmentTexture2,vUv);
+                vec4 thick3 = texture2D(pigmentTexture3,vUv);
+                vec4 thick4 = texture2D(pigmentTexture4,vUv);
+                vec4 reboundVec = texture2D(reboundTexture,vUv);
+
+                float c1 = clamp((thick1.r + thick1.g + thick1.b),0.,1.);
+                float c2 = clamp((thick2.r + thick2.g + thick2.b),0.,1.);
+                float c3 = clamp((thick3.r + thick3.g + thick3.b),0.,1.);
+                float c4 = clamp((thick4.r + thick4.g + thick4.b),0.,1.);
+                float pig_amt = min(c1+c2+c3+c4,1.0);
+                vec4 c = vec4(c1,c2,c3,c4);
+                vec3 rgb = vec3(0.);
+                mixbox(c,rgb);
+                float r = clamp(rgb[0]+latent[0],0.0f,1.0f);
+                float g = clamp(rgb[1]+latent[1],0.0f,1.0f);
+                float b = clamp(rgb[2]+latent[2],0.0f,1.0f);
+                vec4 fColor = vec4(r,g,b,pig_amt);
+                vec4 pColor = texture2D(paperTexture,vUv);
+                //fragColor = mix(pColor,fColor,pig_amt);
+                fragColor = fColor;
             }
 
             vec3 reflKM(in vec3 R1, in vec3 R2, in vec3 T1, in vec3 T2){
@@ -649,7 +747,7 @@
                 vec4 thick1 = texture2D(pigmentTexture1,vUv);
                 vec4 thick2 = texture2D(pigmentTexture2,vUv);
                 vec4 thick = thick1+thick2;
-                float d = (thick.r + thick.g + thick.b)/3.;
+                float d = clamp((thick.r + thick.g + thick.b)/3.,0.,1.0);
                 vec3[3] kmix = vec3[3](K1 * thick1.r + K2 * thick2.r,
                                  K1 * thick1.g + K2 * thick2.g,
                                  K1 * thick1.b + K2 * thick2.b);
@@ -659,6 +757,7 @@
                 //vec3 R = 1. + kmix[2]/smix[2] - sqrt((kmix[2]/smix[2]) * (kmix[2]/smix[2]) + 2. * (kmix[2]/smix[2]));
                 vec3 T = vec3(0.);
                 vec3 R = vec3(0.);
+                //R = texture2D(paperTexture,vUv).rgb;
                 vec3 a, b, bsd, c;
                 a = b = bsd = c = vec3(0.);
                 if(kmix[2].x+kmix[2].y+kmix[2].z > 0. && smix[2].x+smix[2].y+smix[2].z > 0.){
@@ -722,10 +821,23 @@
                         advectPigment(gl_FragColor,pigmentTexture2,2);
                         break;
                     case 10:
+                        flowPigment(gl_FragColor,pigmentTexture3,3);
+                        break;
+                    case 11:
+                        advectPigment(gl_FragColor,pigmentTexture3,3);
+                        break;
+                    case 12:
+                        flowPigment(gl_FragColor,pigmentTexture4,4);
+                        break;
+                    case 13:
+                        advectPigment(gl_FragColor,pigmentTexture4,4);
+                        break;
+                    case 14:
                         drawUv(gl_FragColor);
                         break;
                     default:
                         //drawToScreen(gl_FragColor);
+                        //getMixColor(gl_FragColor);
                         getKMColor(gl_FragColor);
                         break;
                 }
@@ -738,6 +850,17 @@
         <div class="container">
 			<div class="slider"></div>
 		</div>
+        <script>
+            var Module = {
+                onRuntimeInitialized: function() {
+                var retVector = Module.mixbox_vec_wrapper(10, 20, 230);
+                for (var i = 0; i < retVector.size(); i++) {
+                    console.log("Vector Value: ", retVector.get(i));
+                }
+                }
+            };
+        </script>
+        <script type="module" src="quick_example.js"></script>
         <script type="module" src="bundle.js"></script>
     </body>
 </html>

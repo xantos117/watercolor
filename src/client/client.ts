@@ -2,6 +2,19 @@ import * as THREE from 'three'
 import Stats from 'three/examples/jsm/libs/stats.module'
 import { GUI } from 'lil-gui'
 import { Vector3, Vector4, WebGLRenderTarget } from 'three';
+import * as quickEx from './quick_example.js'
+
+let redArray: Array<number> = [];
+quickEx.Module['onRuntimeInitialized'] = function() {
+      var retVector = quickEx.Module.mixbox_vec_srgb8_to_latent(255, 10, 10);
+      for (var i = 0; i < 4; i++) {
+          console.log("Vector Value: ", retVector.get(i));
+          uniforms.pigCon.value.setComponent(i,retVector.get(i));
+      }
+      for(var i = 0; i < 3; i++) {
+          uniforms.latent.value.setComponent(i,retVector.get(i+4));
+      }
+    };
 
 let mouseX : number, mouseY : number;
 let mouseDown = false;
@@ -19,6 +32,8 @@ initTex.needsUpdate = true;
 let initTex2 = new THREE.Texture().copy(initTex);
 let isInked = false;
 let sliderSelected = false;
+const stats = Stats()
+document.body.appendChild(stats.dom)
 
 let scene = new THREE.Scene();
 let initScene = new THREE.Scene();
@@ -43,6 +58,14 @@ let bufferScene = new THREE.Scene();
 
 let bufferTexture = new THREE.WebGLRenderTarget( 1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter});
 
+function createTexture(){
+    return new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
+                                        {minFilter: THREE.LinearFilter,
+                                        magFilter: THREE.LinearFilter,
+                                        format: THREE.RGBAFormat,
+                                        type: THREE.FloatType});
+}
+
 
 let Texture1 = new THREE.WebGLRenderTarget(canvasWidth/2, canvasHeight/2,
     {minFilter: THREE.LinearFilter,
@@ -55,71 +78,25 @@ let Texture2 = new THREE.WebGLRenderTarget(canvasWidth/2, canvasHeight/2,
      format: THREE.RGBAFormat,
      type: THREE.FloatType});
 
-let StVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let DiagVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let OtherVecs1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
+// Set 1
+let StVecs1 = createTexture();
+let DiagVecs1 = createTexture();
+let OtherVecs1 = createTexture();
+let waterAndBoundary1 = createTexture();
+let c1_1 = createTexture();
+let c2_1 = createTexture();
+let c3_1 = createTexture();
+let c4_1 = createTexture();
 
-let waterAndBoundary1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-
-let redLayer1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-
-let greenLayer1 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-
-let StVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let DiagVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let OtherVecs2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType}); 
-
-let waterAndBoundary2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let redLayer2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
-let greenLayer2 = new THREE.WebGLRenderTarget(texcanvasWidth, texcanvasHeight,
-    {minFilter: THREE.LinearFilter,
-     magFilter: THREE.LinearFilter,
-     format: THREE.RGBAFormat,
-     type: THREE.FloatType});
+// Set 2
+let StVecs2 = createTexture();
+let DiagVecs2 = createTexture();
+let OtherVecs2 = createTexture(); 
+let waterAndBoundary2 = createTexture();
+let c1_2 = createTexture();
+let c2_2 = createTexture();
+let c3_2 = createTexture();
+let c4_2 = createTexture();
 
 console.log(StVecs1.texture.image);
 
@@ -140,7 +117,7 @@ let fragScreen : HTMLElement | null = document.getElementById('fragment-screen')
 
 const loader = new THREE.TextureLoader();
 const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/bayer.png');
-let PaperTexture = loader.load('paper-grain-texture.jpg');
+let PaperTexture = loader.load('coquille_tex.jpg');
 texture.minFilter = THREE.NearestFilter;
 texture.magFilter = THREE.NearestFilter;
 texture.wrapS = THREE.RepeatWrapping;
@@ -164,6 +141,8 @@ let uniforms = {
     reboundTexture: {type: "t", value: initTex as THREE.Texture},
     pigmentTexture1: {type: "t", value: initTex as THREE.Texture},
     pigmentTexture2: {type: "t", value: initTex as THREE.Texture},
+    pigmentTexture3: {type: "t", value: initTex as THREE.Texture},
+    pigmentTexture4: {type: "t", value: initTex as THREE.Texture},
     paperTexture: {type: "t", value: PaperTexture},
     shaderStage: {value: 0},
     mDown: {type: "b", value: false}, 
@@ -174,7 +153,12 @@ let uniforms = {
     alpha: {value: 0.3},
     eta: {value: 0.0005},
     ink: {value: false},
+    tau: {value: 0.5},
+    granGam: {value: 0.9},
+    theta: {value: 0.01},
     brushRadius: {value: 10.},
+    pigCon: {value: new THREE.Vector4() },
+    latent: {value: new THREE.Vector3() },
     dv: {value: new THREE.Vector2()},
     K1: {value: new THREE.Vector3()},
     S1: {value: new THREE.Vector3()},
@@ -310,7 +294,7 @@ function logKey(event: KeyboardEvent){
             curStage.Stage = renderStages[0];
             break;
         case 'KeyU':
-            curStage.Stage = renderStages[10];
+            curStage.Stage = renderStages[14];
             break;
     }
 }
@@ -430,6 +414,7 @@ const colorSet = {
 const curColor = {Color: colorSet.red};
 const curColorID = {ID: 1};
 const colorIDs = [
+    0,
     1,
     2,
 ];
@@ -446,6 +431,10 @@ const renderStages = [
     8,
     9,
     10,
+    11,
+    12,
+    13,
+    14,
 ];
 
 const curStage = {Stage: 6};
@@ -458,9 +447,12 @@ colorFolder.add(curColorID,'ID',colorIDs);
 const uniformFolder = gui.addFolder('Uniforms');
 uniformFolder.add(uniforms.omg,"value",0,1).name('Omega');
 uniformFolder.add(uniforms.rho0,"value",0.5,1.5).name('rho0');
-uniformFolder.add(uniforms.eta,"value",0,0.005).name('eta');
+uniformFolder.add(uniforms.eta,"value",0,0.5).name('eta');
 uniformFolder.add(uniforms.alpha,"value",0.2,0.5).name('alpha');
-uniformFolder.add(curStage,'Stage',renderStages);
+uniformFolder.add(uniforms.tau,"value",0,1).name('tau');
+uniformFolder.add(uniforms.granGam,"value",0,1).name('Granulation');
+uniformFolder.add(uniforms.theta,"value",0,1).name('Theta');
+uniformFolder.add(curStage,'Stage',renderStages).listen();
 uniformFolder.add(uniforms.brushRadius,"value",1,100).name('Brush Size');
 
 var params = {color1w: "#1861b3",
@@ -480,6 +472,13 @@ var update = function (paramColor: string, toChange: number, color_a: number, co
     var hex = colorVec[toChange].getHexString();
     var css = colorVec[toChange].getStyle();
     var display = "#"+ hex + " or " + css;
+    var vec = quickEx.Module.mixbox_vec_srgb32f_to_latent(colorVec[color_a].r,colorVec[color_a].g, colorVec[color_a].b);
+    for (var i = 0; i < 4; i++) {
+        uniforms.pigCon.value.setComponent(i,vec.get(i));
+    }
+    for(var i = 0; i < 3; i++) {
+        uniforms.latent.value.setComponent(i,vec.get(i+4));
+    }
     //$("#colors").append(display+"<br>");
     KS[KSInd] = calculateKS(new THREE.Vector3(colorVec[color_a].r, colorVec[color_a].g, colorVec[color_a].b), new THREE.Vector3(colorVec[color_b].r, colorVec[color_b].g, colorVec[color_b].b));
 };
@@ -492,10 +491,22 @@ var update = function (paramColor: string, toChange: number, color_a: number, co
 //     KS1 = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
 // };
 
-gui.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)});
-gui.addColor(params,'color1b').onChange(function () {update(params.color1b,1,0,1,0)});
-gui.addColor(params,'color2w').onChange(function () {update(params.color2w,2,2,3,1)});
-gui.addColor(params,'color2b').onChange(function () {update(params.color2b,3,2,3,1)});
+gui.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)}).name("Color");
+// gui.addColor(params,'color1b').onChange(function () {update(params.color1b,1,0,1,0)});
+// gui.addColor(params,'color2w').onChange(function () {update(params.color2w,2,2,3,1)});
+// gui.addColor(params,'color2b').onChange(function () {update(params.color2b,3,2,3,1)});
+
+let latent = {get:function(){ 
+                                let vec = quickEx.Module.mixbox_vec_srgb8_to_latent(255,0,0)
+                                for (var i = 0; i < vec.size(); i++) {
+                                    console.log("Vector Value: ", vec.get(i));
+                                    redArray[i] = vec.get(i);
+                                }
+                                for(var i = 0; i < 3; i++) {
+                                    uniforms.latent.value.setComponent(i,vec.get(i+4));
+                                }
+                            }
+            }
 
 
 let screenToggle = false;
@@ -540,8 +551,10 @@ function render() {
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
         uniforms.reboundTexture.value = waterAndBoundary1.texture;
-        uniforms.pigmentTexture1.value = redLayer1.texture;
-        uniforms.pigmentTexture2.value = greenLayer1.texture;
+        uniforms.pigmentTexture1.value = c1_1.texture;
+        uniforms.pigmentTexture2.value = c2_1.texture;
+        uniforms.pigmentTexture3.value = c3_1.texture;
+        uniforms.pigmentTexture4.value = c4_1.texture;
         renderer.setRenderTarget(OtherVecs2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 5;
@@ -563,18 +576,18 @@ function render() {
         renderer.setRenderTarget(DiagVecs2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 6;
-        renderer.setRenderTarget(redLayer2);
+        renderer.setRenderTarget(c1_2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 7;
-        uniforms.pigmentTexture1.value = redLayer2.texture;
-        renderer.setRenderTarget(redLayer1);
+        uniforms.pigmentTexture1.value = c1_2.texture;
+        renderer.setRenderTarget(c1_1);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 8;
-        renderer.setRenderTarget(greenLayer2);
+        renderer.setRenderTarget(c2_2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 9;
-        uniforms.pigmentTexture2.value = greenLayer2.texture;
-        renderer.setRenderTarget(greenLayer1);
+        uniforms.pigmentTexture2.value = c2_2.texture;
+        renderer.setRenderTarget(c2_1);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
@@ -584,8 +597,10 @@ function render() {
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
         uniforms.reboundTexture.value = waterAndBoundary2.texture;
-        uniforms.pigmentTexture1.value = redLayer1.texture;
-        uniforms.pigmentTexture2.value = greenLayer1.texture;
+        uniforms.pigmentTexture1.value = c1_1.texture;
+        uniforms.pigmentTexture2.value = c2_1.texture;
+        uniforms.pigmentTexture3.value = c3_1.texture;
+        uniforms.pigmentTexture4.value = c4_1.texture;
         renderer.setRenderTarget(OtherVecs1);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 5;
@@ -607,18 +622,34 @@ function render() {
         renderer.setRenderTarget(DiagVecs2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 6;
-        renderer.setRenderTarget(redLayer2);
+        renderer.setRenderTarget(c1_2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 7;
-        uniforms.pigmentTexture1.value = redLayer2.texture;
-        renderer.setRenderTarget(redLayer1);
+        uniforms.pigmentTexture1.value = c1_2.texture;
+        renderer.setRenderTarget(c1_1);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 8;
-        renderer.setRenderTarget(greenLayer2);
+        renderer.setRenderTarget(c2_2);
         renderer.render(scene, camera);
         uniforms.shaderStage.value = 9;
-        uniforms.pigmentTexture2.value = greenLayer2.texture;
-        renderer.setRenderTarget(greenLayer1);
+        uniforms.pigmentTexture2.value = c2_2.texture;
+        renderer.setRenderTarget(c2_1);
+        renderer.render(scene, camera);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 10;
+        renderer.setRenderTarget(c3_2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 11;
+        uniforms.pigmentTexture3.value = c3_2.texture;
+        renderer.setRenderTarget(c3_1);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 12;
+        renderer.setRenderTarget(c4_2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 13;
+        uniforms.pigmentTexture4.value = c4_2.texture;
+        renderer.setRenderTarget(c4_1);
+        renderer.render(scene, camera);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
@@ -631,7 +662,7 @@ function render() {
     screenToggle = !screenToggle;
     
     renderer.setScissor( sliderPos, 0, window.innerWidth, window.innerHeight );
-    renderer.setClearColor("rgb(255, 255, 255)");
+    renderer.setClearColor("rgb(220, 220, 220)");
     renderer.setRenderTarget(null);
     renderer.render( bufferScene, camera );
     renderer.setScissor( 0, 0, sliderPos, window.innerHeight );
@@ -641,6 +672,7 @@ function render() {
     if(mouseDown){
         uniforms.mousePrior.value.copy(uniforms.mousePos.value);
     }
+    stats.update();
 }
  
 render()
