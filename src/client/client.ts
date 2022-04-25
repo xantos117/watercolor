@@ -144,6 +144,7 @@ PaperTexture.wrapT = THREE.RepeatWrapping;
 let uniforms = {
     iTime: { value: 0 },
     iResolution:  { value: new THREE.Vector3(1, 1, 1) },
+    mousePrior2: { value: new THREE.Vector2() },
     mousePrior: { value: new THREE.Vector2() },
     mousePos: { value: new THREE.Vector2() },
     inkColor: { value: new THREE.Vector4(1,1,1,1)},
@@ -239,7 +240,7 @@ function initSlider() {
 initSlider();
 
 let pressVal = 0;
-let pbrushRadius = {value: 0};
+let pbrushRadius = {value: 30};
 
 renderer.domElement.className = '.canvas';
 Pressure.set(renderer.domElement, {
@@ -282,6 +283,7 @@ function doMouseDown(event: PointerEvent)
         mousePos.x = mouse.x/canvasWidth;
         mousePos.y = 1-mouse.y/canvasHeight;
         uniforms.mousePrior.value.copy(mousePos);
+        uniforms.mousePrior2.value.copy(mousePos);
     }
 }
 
@@ -652,6 +654,10 @@ function render() {
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
+        if(mouseDown){
+            uniforms.mousePrior2.value.copy(uniforms.mousePrior.value);
+            uniforms.mousePrior.value.copy(uniforms.mousePos.value);
+        }
     } else {
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
@@ -712,6 +718,10 @@ function render() {
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs1.texture;
+        if(mouseDown){
+            uniforms.mousePrior2.value.copy(uniforms.mousePrior.value);
+            uniforms.mousePrior.value.copy(uniforms.mousePos.value);
+        }
     }
     if(!mouseDown) {
         uniforms.mDown.value = false;
@@ -727,9 +737,6 @@ function render() {
     uniforms.shaderStage.value = curStage.Stage;
     renderer.render( scene, camera );
     initTime = Date.now();
-    if(mouseDown){
-        uniforms.mousePrior.value.copy(uniforms.mousePos.value);
-    }
     stats.update();
 }
  
