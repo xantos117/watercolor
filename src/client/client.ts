@@ -20,6 +20,7 @@ quickEx.Module['onRuntimeInitialized'] = function() {
 let mouseX : number, mouseY : number;
 let mouseDown = false;
 let mouse = new THREE.Vector3(0,0,1);
+let mousePos = new THREE.Vector2();
 let canvasWidth = window.innerWidth;
 let canvasHeight = window.innerHeight;
 let texcanvasWidth = canvasWidth;
@@ -116,9 +117,21 @@ let vertShader : HTMLElement | null = document.getElementById('vertex-shader');
 let fragShader : HTMLElement | null = document.getElementById('fragment-shader');
 let fragScreen : HTMLElement | null = document.getElementById('fragment-screen');
 
+const paperList = [
+    'coquille_tex.jpg',
+    'paper-1.png',
+    'paper-2.png',
+    'paper-3.png',
+    'paper-fibers.png',
+    'paper-grain-texture.jpg',
+    'rice-paper.png',
+    'rice-paper-2.png',
+];
+let paperName = {value: paperList[5]};
+
 const loader = new THREE.TextureLoader();
 const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/bayer.png');
-let PaperTexture = loader.load('coquille_tex.jpg');
+let PaperTexture = loader.load(paperName.value);
 texture.minFilter = THREE.NearestFilter;
 texture.magFilter = THREE.NearestFilter;
 texture.wrapS = THREE.RepeatWrapping;
@@ -148,16 +161,17 @@ let uniforms = {
     shaderStage: {value: 0},
     mDown: {type: "b", value: false}, 
     paintTexID: {value: 1},
-    omg: {value: 0.9},
+    omg: {value: 0.7},
     rho0: {value: 1.0},
     c: {value: 1.0},
     alpha: {value: 0.3},
     eta: {value: 0.0005},
     ink: {value: false},
+    useMixbox: {value: false},
     tau: {value: 0.5},
-    granGam: {value: 0.9},
+    granGam: {value: 0.3},
     theta: {value: 0.01},
-    brushRadius: {value: 10.},
+    brushRadius: {value: 30.},
     pigCon: {value: new THREE.Vector4() },
     latent: {value: new THREE.Vector3() },
     dv: {value: new THREE.Vector2()},
@@ -175,8 +189,8 @@ const sizes = {
     height: canvasHeight
 };
 
-let sliderPos = window.innerWidth / 2;
-let slider = document.querySelector( '.slider' ) as HTMLElement;
+let sliderPos = 0;//window.innerWidth / 2;
+let slider = document.querySelector( '.deb_slider' ) as HTMLElement;
 function initSlider() {
 
 
@@ -225,21 +239,22 @@ function initSlider() {
 initSlider();
 
 let pressVal = 0;
+let pbrushRadius = {value: 0};
 
 renderer.domElement.className = '.canvas';
 Pressure.set(renderer.domElement, {
-    change: function(force: number){
+    change: function(force: number, event: PointerEvent){
         pressVal = force;
         //console.log(force);
         if(usePressure.value){
-            uniforms.brushRadius.value = 0.5 * brushRadius.value + brushRadius.value * force;
+            pbrushRadius.value = 0.5 * brushRadius.value + brushRadius.value * force;
         }else{
-            uniforms.brushRadius.value = brushRadius.value;
+            pbrushRadius.value = brushRadius.value;
         }
     }
 });
 
-function doMouseMove(event: MouseEvent)
+function doMouseMove(event: PointerEvent)
 {
     mouse.x = event.pageX
     mouse.y = event.pageY
@@ -247,8 +262,8 @@ function doMouseMove(event: MouseEvent)
 
     if(mouseDown && !sliderSelected) {
 
-        uniforms.mousePos.value.x = mouse.x/canvasWidth;
-        uniforms.mousePos.value.y = 1-mouse.y/canvasHeight;
+        mousePos.x = mouse.x/canvasWidth;
+        mousePos.y = 1-mouse.y/canvasHeight;
     }
 }
 
@@ -264,9 +279,9 @@ function doMouseDown(event: PointerEvent)
             isInked = true;
             uniforms.ink.value = true;
         }
-        uniforms.mousePos.value.x = mouse.x/canvasWidth;
-        uniforms.mousePos.value.y = 1-mouse.y/canvasHeight;
-        uniforms.mousePrior.value.copy(uniforms.mousePos.value);
+        mousePos.x = mouse.x/canvasWidth;
+        mousePos.y = 1-mouse.y/canvasHeight;
+        uniforms.mousePrior.value.copy(mousePos);
     }
 }
 
@@ -434,7 +449,7 @@ const colorIDs = [
     1,
     2,
 ];
-let brushRadius = {value: 10};
+let brushRadius = {value: 30};
 
 const renderStages = [
     0,
@@ -454,16 +469,24 @@ const renderStages = [
     14,
 ];
 
+
+let mixSwitch = () => {
+    colorFolder.domElement.style.display = !uniforms.useMixbox.value ? '' : 'none';
+    mcolorFolder.domElement.style.display = uniforms.useMixbox.value ? '' : 'none';
+}
+
 const curStage = {Stage: 6};
 
 let usePressure = {value: false};
+let useMixbox = {value: false};
 
 const gui = new GUI();
+const uniformFolder = gui.addFolder('Uniforms');
 const colorFolder = gui.addFolder('Color');
-colorFolder.add(curColor,'Color',colorSet);
+const mcolorFolder = gui.addFolder('Mixbox Color');
+
 colorFolder.add(curColorID,'ID',colorIDs);
 
-const uniformFolder = gui.addFolder('Uniforms');
 uniformFolder.add(uniforms.omg,"value",0,1).name('Omega');
 uniformFolder.add(uniforms.rho0,"value",0.5,1.5).name('rho0');
 uniformFolder.add(uniforms.eta,"value",0,0.5).name('eta');
@@ -472,6 +495,7 @@ uniformFolder.add(uniforms.tau,"value",0,1).name('tau');
 uniformFolder.add(uniforms.granGam,"value",0,1).name('Granulation');
 uniformFolder.add(uniforms.theta,"value",0,1).name('Theta');
 uniformFolder.add(usePressure, "value").name('Pressure');
+uniformFolder.add(uniforms.useMixbox, "value").name('Mixbox').onChange(mixSwitch);
 uniformFolder.add(curStage,'Stage',renderStages).listen();
 uniformFolder.add(brushRadius,"value",1,100).name('Brush Size');
 
@@ -499,22 +523,22 @@ var update = function (paramColor: string, toChange: number, color_a: number, co
     for(var i = 0; i < 3; i++) {
         uniforms.latent.value.setComponent(i,vec.get(i+4));
     }
-    //$("#colors").append(display+"<br>");
     KS[KSInd] = calculateKS(new THREE.Vector3(colorVec[color_a].r, colorVec[color_a].g, colorVec[color_a].b), new THREE.Vector3(colorVec[color_b].r, colorVec[color_b].g, colorVec[color_b].b));
 };
-// var update2 = function (paramColor: string, color_a: THREE.Color, color_b: THREE.Color) {
-//     color2 = new THREE.Color( paramColor );
-//     var hex = color2.getHexString();
-//     var css = color2.getStyle();
-//     var display = "#"+ hex + " or " + css;
-//     //$("#colors").append(display+"<br>");
-//     KS1 = calculateKS(new THREE.Vector3(color1.r, color1.g, color1.b), new THREE.Vector3(color2.r, color2.g, color2.b));
-// };
 
-gui.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)}).name("Color");
-// gui.addColor(params,'color1b').onChange(function () {update(params.color1b,1,0,1,0)});
-// gui.addColor(params,'color2w').onChange(function () {update(params.color2w,2,2,3,1)});
-// gui.addColor(params,'color2b').onChange(function () {update(params.color2b,3,2,3,1)});
+var updatePaper = function() {
+    PaperTexture = loader.load(paperName.value);
+    uniforms.paperTexture.value = PaperTexture;
+}
+
+colorFolder.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)}).name("Color1w");
+colorFolder.addColor(params,'color1b').onChange(function () {update(params.color1b,1,0,1,0)}).name("Color1b");
+colorFolder.addColor(params,'color2w').onChange(function () {update(params.color2w,2,2,3,1)}).name("Color2w");
+colorFolder.addColor(params,'color2b').onChange(function () {update(params.color2b,3,2,3,1)}).name("Color2b");
+mcolorFolder.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)}).name("Color");
+gui.add(paperName,'value',paperList).onChange(updatePaper)
+
+mixSwitch();
 
 let latent = {get:function(){ 
                                 let vec = quickEx.Module.mixbox_vec_srgb8_to_latent(255,0,0)
@@ -545,6 +569,8 @@ function render() {
     uniforms.iTime.value = (Date.now() - initTime)/1000;
     let maxdv = maxDist.divideScalar(uniforms.iTime.value);
     uniforms.dv.value.copy(maxdv);
+    uniforms.mousePos.value.copy(mousePos);
+    uniforms.brushRadius.value = pbrushRadius.value;
     //let dv = new THREE.Vector2().addVectors(uniforms.mousePrior.value, uniforms.mousePos.value.).multiplyScalar(1/maxdv);
     //console.log(dv);
     //uniforms.dv.value.copy(dv);
@@ -609,6 +635,20 @@ function render() {
         uniforms.pigmentTexture2.value = c2_2.texture;
         renderer.setRenderTarget(c2_1);
         renderer.render(scene, camera);
+        uniforms.shaderStage.value = 10;
+        renderer.setRenderTarget(c3_2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 11;
+        uniforms.pigmentTexture3.value = c3_2.texture;
+        renderer.setRenderTarget(c3_1);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 12;
+        renderer.setRenderTarget(c4_2);
+        renderer.render(scene, camera);
+        uniforms.shaderStage.value = 13;
+        uniforms.pigmentTexture4.value = c4_2.texture;
+        renderer.setRenderTarget(c4_1);
+        renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;
         uniforms.otherVecs.value = OtherVecs2.texture;
@@ -655,7 +695,6 @@ function render() {
         uniforms.pigmentTexture2.value = c2_2.texture;
         renderer.setRenderTarget(c2_1);
         renderer.render(scene, camera);
-        renderer.render(scene, camera);
         uniforms.shaderStage.value = 10;
         renderer.setRenderTarget(c3_2);
         renderer.render(scene, camera);
@@ -669,7 +708,6 @@ function render() {
         uniforms.shaderStage.value = 13;
         uniforms.pigmentTexture4.value = c4_2.texture;
         renderer.setRenderTarget(c4_1);
-        renderer.render(scene, camera);
         renderer.render(scene, camera);
         uniforms.stVecs.value = StVecs2.texture;
         uniforms.diagVecs.value = DiagVecs2.texture;

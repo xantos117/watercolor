@@ -13,7 +13,7 @@
 				height: 100%;
 			}
 
-			.slider {
+			.deb_slider {
 				position: absolute;
 				cursor: ew-resize;
 
@@ -24,7 +24,7 @@
 				border-radius: 50%;
 
 				top: calc(50% - 20px);
-				left: calc(50% - 20px);
+				left: calc(0% - 20px);
 			}
 		</style>
         <title>Watercolors</title>
@@ -128,6 +128,7 @@
             uniform float alpha;
             uniform float eta;
             uniform bool ink;
+            uniform bool useMixbox;
             uniform float tau;
             uniform float granGam;
             uniform float theta;
@@ -305,12 +306,13 @@
                 float rho_p = otherVec.a;
 
                 float dist = length(getMouseDistance());
-                if(dist < brushRadius && mDown && pigID == paintTexID) {   
-                    psurf = 1.0;// pigCon[pigID-1];
+                if(dist < brushRadius && mDown && (pigID == paintTexID || useMixbox)) {   
+                    psurf = float(!useMixbox)*1.0 + float(useMixbox)*pigCon[pigID-1];
                 }
                 
                 if(kappa <= 1.){
-                    if(rho + wf > 0.){
+                    // wet cell
+                    if(rho > 0.){
                         pflow = (pflow * rho + psurf * wf)/(rho + wf);
                         //float dflow = pflow - priorVec.g;
                         psurf = max(psurf - pflow,0.);
@@ -321,14 +323,18 @@
 
                     float wloss = rho_p - rho;
                     float psi = 0.;
-                    if(rho > 0.){
-                        psi = abs((wloss)/rho_p);
-                        //toFix = pflow * (1. - kappa * granGam) * max(psi * (1.-smoothstep(0.,1.0,rho)),0.05 * iTime);// - float(speed > tau*iTime) * (theta * rho * pfix);
-                        toFix = (pflow * max(psi * (1.-smoothstep(0.,1.0,rho)),0.005*iTime)) - float(speed > tau*iTime) * (theta * rho * pfix);
+                    if(wloss > 0.){
+                        psi = (wloss)/rho_p;
+                        toFix = pflow*(1. - kappa * granGam) *(max(psi * (1.-smoothstep(0.,1.0,rho)),0.005)) - float(speed > tau*iTime) * (theta * rho * pfix);
                     } else {
                         // out of fluid!
-                        toFix = pflow;
+                        toFix = pflow * float(rho == 0.);
                     }
+                    //float wloss = max(rho_p - rho,0.);
+                    //float fixFactor = mix(0.,wloss/rho_p,float(wloss > 0. && rho_p > 0.));
+                    //float mu = 0.005;
+                    //fixFactor = max(fixFactor * (1.-smoothstep(0.,mu,rho)),0.005);// - float(speed > tau*iTime) * (theta * rho * pfix);
+                    //toFix = mix(mix(fixFactor * pflow,fixFactor * pfix, float(speed > tau*iTime)),pflow,float(rho == 0.));
                     
                     //toFix = min(toFix,pflow);
                     if(pflow > toFix){
@@ -336,8 +342,8 @@
                         pfix = mix(pfix + toFix, pfix - toFix, float(speed > tau*iTime));
                     }
                     else {
-                        pfix = mix(pfix - toFix,pfix + pflow, float(speed <= tau*iTime));
-                        pflow = mix(0.,toFix,float(speed <= tau*iTime));
+                        pfix = mix(pfix + toFix,pfix - pflow, float(speed > tau*iTime));
+                        pflow = mix(0.,toFix,float(speed > tau*iTime));
                     }
                 }else {
                     if(wf==0. && rho==0.){
@@ -346,8 +352,8 @@
                     }
                 }
 
-                fragColor = vec4(clamp(psurf,0.,1.),clamp(pflow,0.,1.),clamp(pfix,0.,1.),1.);
-                //fragColor = vec4(psurf,pflow,pfix,1.);
+                //fragColor = vec4(clamp(psurf,0.,1.),clamp(pflow,0.,1.),clamp(pfix,0.,1.),1.);
+                fragColor = vec4(psurf,pflow,pfix,1.);
             }
 
             void advectPigment(out vec4 fragColor,in sampler2D pigTex, in int pigID){
@@ -374,25 +380,22 @@
                 float rho = reboundVec.a;
                 
                 for(int i = 1; i<5;i++) {
-                    ptemp += stVec[i] * texture2D(pigTex,vUv-e[i]).g * 2.;
+                    ptemp += texture2D(stVecs,vUv-e[i])[i] * texture2D(pigTex,vUv-e[i]).g;
                 }
                 for(int i = 5;i<9;i++) {
-                    ptemp += diagVec[i] * texture2D(pigTex,vUv-e[i]).g * 2.;
+                    ptemp += texture2D(diagVecs,vUv-e[i])[i] * texture2D(pigTex,vUv-e[i]).g;
                 }
                 //ptemp *= (1./rho);
 
-                float t = float(int(ptemp > eta && wf > 0.));
+                float t = float(ptemp > eta && wf > 0.);
                 if(kappa <= 1.) {
                     // already wet
                     // perhaps velocity should scale this? 
-                    if(texture2D(reboundTexture,vUv-vel).b <= 1.){
+                    if(texture2D(reboundTexture,vUv-vel).b < 1.){
                         pflow = texture2D(pigTex,vUv - vel).g;
                     }
                 }else {
                     pflow = pflow + t * ptemp;
-                    //if(ptemp > eta){
-                    //    pflow += ptemp;
-                    //}
                 }
 
                 fragColor = vec4(psurf,pflow,pfix,1.);
@@ -448,52 +451,34 @@
                 float dist = length(getMouseDistance());
                 vec2 ddv = vec2(0.);
 
-                //if(dist < brushRadius && mDown) {  
-                //    ddv = (mousePos - mousePrior)/iTime;
-                //    float topspeed = length(dv);
-                //    float curspeed = length(ddv);
-                //    ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
-                //    for(int i = 0;i<4;i++){
-                //        //stVec[i] = w[i];
-                //        stVec[i] = max(dot(e[i+1],ddv),0.0);
-                //    }
-                //} else {
+                vec4 tex1 = texture2D(stVecs,vUv + e[1]*texel);
+                vec4 tex2 = texture2D(stVecs,vUv + e[2]*texel);
+                vec4 tex3 = texture2D(stVecs,vUv + e[3]*texel);
+                vec4 tex4 = texture2D(stVecs,vUv + e[4]*texel);
+                vec4 reb1 = texture2D(reboundTexture,vUv - e[1]*texel);
+                vec4 reb2 = texture2D(reboundTexture,vUv - e[2]*texel);
+                vec4 reb3 = texture2D(reboundTexture,vUv - e[3]*texel);
+                vec4 reb4 = texture2D(reboundTexture,vUv - e[4]*texel);
+                float kap1 = min((rebound.b + reb3.b)/2.,1.0);
+                float kap2 = min((rebound.b + reb4.b)/2.,1.0);
+                float kap3 = min((rebound.b + reb1.b)/2.,1.0);
+                float kap4 = min((rebound.b + reb2.b)/2.,1.0);
 
-                    vec4 tex1 = texture2D(stVecs,vUv + e[1]*texel);
-                    vec4 tex2 = texture2D(stVecs,vUv + e[2]*texel);
-                    vec4 tex3 = texture2D(stVecs,vUv + e[3]*texel);
-                    vec4 tex4 = texture2D(stVecs,vUv + e[4]*texel);
-                    vec4 reb1 = texture2D(reboundTexture,vUv - e[1]*texel);
-                    vec4 reb2 = texture2D(reboundTexture,vUv - e[2]*texel);
-                    vec4 reb3 = texture2D(reboundTexture,vUv - e[3]*texel);
-                    vec4 reb4 = texture2D(reboundTexture,vUv - e[4]*texel);
-                    float kap1 = min((rebound.b + reb3.b)/2.,1.0);
-                    float kap2 = min((rebound.b + reb4.b)/2.,1.0);
-                    float kap3 = min((rebound.b + reb1.b)/2.,1.0);
-                    float kap4 = min((rebound.b + reb2.b)/2.,1.0);
+                stVec.r = float(rebound.b <= 1.) * ((kap1) * stVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
+                //stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
+                stVec.r = float(rebound.b <= 1.) * max(stVec.r - float(kap1==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.r;
 
-                    stVec.r = float(rebound.b <= 1.) * ((kap1) * stVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
-                    //stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
-                    stVec.r = float(rebound.b <= 1.) * max(stVec.r - float(kap1==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.r;
+                stVec.g = float(rebound.b <= 1.) * ((kap2) * stVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
+                //stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
+                stVec.g = float(rebound.b <= 1.) * max(stVec.g - float(kap2==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.g;
 
-                    stVec.g = float(rebound.b <= 1.) * ((kap2) * stVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
-                    //stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
-                    stVec.g = float(rebound.b <= 1.) * max(stVec.g - float(kap2==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.g;
+                stVec.b = float(rebound.b <= 1.) * ((kap3) * stVec.b + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
+                //stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
+                stVec.b = float(rebound.b <= 1.) * max(stVec.b - float(kap3==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.b;
 
-                    stVec.b = float(rebound.b <= 1.) * ((kap3) * stVec.b + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
-                    //stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
-                    stVec.b = float(rebound.b <= 1.) * max(stVec.b - float(kap3==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.b;
-
-                    stVec.a = float(rebound.b <= 1.) * ((kap4) * stVec.a + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
-                    //stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
-                    stVec.a = float(rebound.b <= 1.) * max(stVec.a - float(kap4==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * stVec.a;
-
-
-                    //fragColor.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;
-                    //fragColor.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
-                    //fragColor.b = float(rebound.b < 10.) * tex3.b + float(rebound.b > 10.) * tex1.r;
-                    //fragColor.a = float(rebound.b < 10.) * tex4.a + float(rebound.b > 10.) * tex2.g;
-                //}
+                stVec.a = float(rebound.b <= 1.) * ((kap4) * stVec.a + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
+                //stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
+                stVec.a = float(rebound.b <= 1.) * max(stVec.a - float(kap4==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.a;
 
                 fragColor = stVec;
             }
@@ -506,50 +491,34 @@
                 float dist = length(getMouseDistance());
                 vec2 ddv = vec2(0.);
 
-                //if(dist < brushRadius && mDown) {  
-                    //ddv = (mousePos - mousePrior)/iTime; 
-                    //float topspeed = length(dv);
-                    //float curspeed = length(ddv);
-                    //ddv = normalize(ddv) * (curspeed/topspeed) * 0.01;
-                    //for(int i = 0;i<4;i++){
-                    //    //diagVec[i] = w[i+5];
-                    //    diagVec[i] = max(dot(e[i+5],ddv),0.0);
-                    //}
-                //} else {
-                    vec4 tex1 = texture2D(diagVecs,vUv - e[5]*texel);
-                    vec4 tex2 = texture2D(diagVecs,vUv - e[6]*texel);
-                    vec4 tex3 = texture2D(diagVecs,vUv - e[7]*texel);
-                    vec4 tex4 = texture2D(diagVecs,vUv - e[8]*texel);
-                    vec4 reb1 = texture2D(reboundTexture,vUv - e[5]*texel);
-                    vec4 reb2 = texture2D(reboundTexture,vUv - e[6]*texel);
-                    vec4 reb3 = texture2D(reboundTexture,vUv - e[7]*texel);
-                    vec4 reb4 = texture2D(reboundTexture,vUv - e[8]*texel);
-                    float kap1 = min((rebound.b + reb3.b)/2.,1.0);
-                    float kap2 = min((rebound.b + reb4.b)/2.,1.0);
-                    float kap3 = min((rebound.b + reb1.b)/2.,1.0);
-                    float kap4 = min((rebound.b + reb2.b)/2.,1.0);
+                vec4 tex1 = texture2D(diagVecs,vUv - e[5]*texel);
+                vec4 tex2 = texture2D(diagVecs,vUv - e[6]*texel);
+                vec4 tex3 = texture2D(diagVecs,vUv - e[7]*texel);
+                vec4 tex4 = texture2D(diagVecs,vUv - e[8]*texel);
+                vec4 reb1 = texture2D(reboundTexture,vUv - e[5]*texel);
+                vec4 reb2 = texture2D(reboundTexture,vUv - e[6]*texel);
+                vec4 reb3 = texture2D(reboundTexture,vUv - e[7]*texel);
+                vec4 reb4 = texture2D(reboundTexture,vUv - e[8]*texel);
+                float kap1 = min((rebound.b + reb3.b)/2.,1.0);
+                float kap2 = min((rebound.b + reb4.b)/2.,1.0);
+                float kap3 = min((rebound.b + reb1.b)/2.,1.0);
+                float kap4 = min((rebound.b + reb2.b)/2.,1.0);
 
-                    diagVec.r = float(rebound.b <= 1.) * ((kap1) * diagVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
-                    //diagVec.r = (kap1) * diagVec.r + (1.-kap1) * tex3.b;
-                    diagVec.r = float(rebound.b <= 1.) * max(diagVec.r - float(kap1==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.r;
+                diagVec.r = float(rebound.b <= 1.) * ((kap1) * diagVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
+                //diagVec.r = (kap1) * diagVec.r + (1.-kap1) * tex3.b;
+                diagVec.r = float(rebound.b <= 1.) * max(diagVec.r - float(kap1==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * diagVec.r;
 
-                    diagVec.g = float(rebound.b <= 1.) * ((kap2) * diagVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
-                    //diagVec.g = (kap2) * diagVec.g + (1.-kap2) * tex4.a;
-                    diagVec.g = float(rebound.b <= 1.) * max(diagVec.g - float(kap2==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.g;
+                diagVec.g = float(rebound.b <= 1.) * ((kap2) * diagVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
+                //diagVec.g = (kap2) * diagVec.g + (1.-kap2) * tex4.a;
+                diagVec.g = float(rebound.b <= 1.) * max(diagVec.g - float(kap2==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * diagVec.g;
 
-                    diagVec.b = float(rebound.b <= 1.) * ((kap3) * diagVec.r + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
-                    //diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
-                    diagVec.b = float(rebound.b <= 1.) * max(diagVec.b - float(kap3==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.b;
+                diagVec.b = float(rebound.b <= 1.) * ((kap3) * diagVec.r + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
+                //diagVec.b = (kap3) * diagVec.b + (1.-kap3) * tex1.r;
+                diagVec.b = float(rebound.b <= 1.) * max(diagVec.b - float(kap3==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * diagVec.b;
 
-                    diagVec.a = float(rebound.b <= 1.) * ((kap4) * diagVec.r + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
-                    //diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
-                    diagVec.a = float(rebound.b <= 1.) * max(diagVec.a - float(kap4==1.) * boundEvapRate*iTime,0.) + float(rebound.b > 1.) * diagVec.a;
-
-                    //diagVec.r = float(rebound.b < 10.) * tex1.r + float(rebound.b > 10.) * tex3.b;
-                    //diagVec.g = float(rebound.b < 10.) * tex2.g + float(rebound.b > 10.) * tex4.a;
-                    //diagVec.b = float(rebound.b < 10.) * tex3.b + float(rebound.b > 10.) * tex1.r;
-                    //diagVec.a = float(rebound.b < 10.) * tex4.a + float(rebound.b > 10.) * tex2.g;
-                //}
+                diagVec.a = float(rebound.b <= 1.) * ((kap4) * diagVec.r + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
+                //diagVec.a = (kap4) * diagVec.a + (1.-kap4) * tex2.g;
+                diagVec.a = float(rebound.b <= 1.) * max(diagVec.a - float(kap4==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * diagVec.a;
 
                 fragColor = diagVec;
             }
@@ -643,7 +612,7 @@
                 vec4 color1 = vec4(1.0,0.1,0.1,1.0);
                 float sumVec = (height.r + height.g + height.b)/3.;
                 vec4 outColor = mix(color1, height, float(sumVec > 0.5));
-                fragColor = outColor;
+                fragColor = texture2D(paperTexture,vUv);
             }
 
             vec3 coefs[20] = vec3[20](
@@ -718,10 +687,10 @@
                 vec4 thick4 = texture2D(pigmentTexture4,vUv);
                 vec4 reboundVec = texture2D(reboundTexture,vUv);
 
-                float c1 = clamp((thick1.r + thick1.g + thick1.b),0.,1.);
-                float c2 = clamp((thick2.r + thick2.g + thick2.b),0.,1.);
-                float c3 = clamp((thick3.r + thick3.g + thick3.b),0.,1.);
-                float c4 = clamp((thick4.r + thick4.g + thick4.b),0.,1.);
+                float c1 = (thick1.r + thick1.g + thick1.b);
+                float c2 = (thick2.r + thick2.g + thick2.b);
+                float c3 = (thick3.r + thick3.g + thick3.b);
+                float c4 = (thick4.r + thick4.g + thick4.b);
                 float pig_amt = min(c1+c2+c3+c4,1.0);
                 vec4 c = vec4(c1,c2,c3,c4);
                 vec3 rgb = vec3(0.);
@@ -729,7 +698,7 @@
                 float r = clamp(rgb[0]+latent[0],0.0f,1.0f);
                 float g = clamp(rgb[1]+latent[1],0.0f,1.0f);
                 float b = clamp(rgb[2]+latent[2],0.0f,1.0f);
-                vec4 fColor = vec4(r,g,b,pig_amt);
+                vec4 fColor = vec4(rgb,pig_amt);
                 vec4 pColor = texture2D(paperTexture,vUv);
                 //fragColor = mix(pColor,fColor,pig_amt);
                 fragColor = fColor;
@@ -837,8 +806,11 @@
                         break;
                     default:
                         //drawToScreen(gl_FragColor);
-                        //getMixColor(gl_FragColor);
-                        getKMColor(gl_FragColor);
+                        if(useMixbox){
+                            getMixColor(gl_FragColor);
+                        }else{
+                            getKMColor(gl_FragColor);
+                        }
                         break;
                 }
             }
@@ -848,7 +820,7 @@
 
     <body>    
         <div class="container">
-			<div class="slider"></div>
+			<div class="deb_slider"></div>
 		</div>
         <script>
             var Module = {
