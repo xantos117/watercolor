@@ -126,8 +126,10 @@ const paperList = [
     'paper-grain-texture.jpg',
     'rice-paper.png',
     'rice-paper-2.png',
+    'white-paper-texture.jpg',
+    'paper-texture.jpg',
 ];
-let paperName = {value: paperList[5]};
+let paperName = {value: paperList[8]};
 
 const loader = new THREE.TextureLoader();
 const texture = loader.load('https://threejsfundamentals.org/threejs/resources/images/bayer.png');
@@ -540,6 +542,9 @@ colorFolder.addColor(params,'color2b').onChange(function () {update(params.color
 mcolorFolder.addColor(params,'color1w').onChange(function () {update(params.color1w,0,0,1,0)}).name("Color");
 gui.add(paperName,'value',paperList).onChange(updatePaper)
 
+let saveObj = {Save: function(){saveAsImage()}};
+gui.add(saveObj,'Save').name("Save Image");
+
 mixSwitch();
 
 let latent = {get:function(){ 
@@ -741,3 +746,36 @@ function render() {
 }
  
 render()
+
+
+// taken from https://codepen.io/shivasaxena/pen/QEzrrv
+let strDownloadMime = "image/watercolor-stream";
+
+function saveAsImage() {
+    let imgData, imgNode;
+
+    try {
+        var strMime = "image/jpeg";
+        imgData = renderer.domElement.toDataURL(strMime);
+
+        saveFile(imgData.replace(strMime, strDownloadMime), "test.jpg");
+
+    } catch (e) {
+        console.log(e);
+        return;
+    }
+
+}
+
+var saveFile = function (strData: string, filename: string) {
+    var link = document.createElement('a');
+    if (typeof link.download === 'string') {
+        document.body.appendChild(link); //Firefox requires the link to be in the body
+        link.download = filename;
+        link.href = strData;
+        link.click();
+        document.body.removeChild(link); //remove the link when done
+    } else {
+        //location.replace(uri);
+    }
+}

@@ -414,7 +414,7 @@
                 if(kappa <= 1.) {
                     // already wet
                     // perhaps velocity should scale this? 
-                    if(texture2D(reboundTexture,vUv-vel).b < 1.){
+                    if(texture2D(reboundTexture,vUv-vel).b <= 1.){
                         pflow = texture2D(pigTex,vUv - vel).g;
                     }
                 }else {
@@ -489,19 +489,19 @@
 
                 stVec.r = float(rebound.b <= 1.) * ((kap1) * stVec.r + (1.-kap1) * tex3.r) + float(rebound.b > 1.) * (tex1.b);
                 //stVec.r = (kap1) * stVec.r + (1.-kap1) * tex3.b;
-                stVec.r = float(rebound.b <= 1.) * max(stVec.r - float(kap1==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.r;
+                stVec.r = float(rebound.b <= 1.) * max(stVec.r - float(kap1>=1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.r;
 
                 stVec.g = float(rebound.b <= 1.) * ((kap2) * stVec.g + (1.-kap2) * tex4.g) + float(rebound.b > 1.) * (tex2.a);
                 //stVec.g = (kap2) * stVec.g + (1.-kap2) * tex4.a;
-                stVec.g = float(rebound.b <= 1.) * max(stVec.g - float(kap2==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.g;
+                stVec.g = float(rebound.b <= 1.) * max(stVec.g - float(kap2>=1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.g;
 
                 stVec.b = float(rebound.b <= 1.) * ((kap3) * stVec.b + (1.-kap3) * tex1.b) + float(rebound.b > 1.) * (tex3.r);
                 //stVec.b = (kap3) * stVec.b + (1.-kap3) * tex1.r;
-                stVec.b = float(rebound.b <= 1.) * max(stVec.b - float(kap3==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.b;
+                stVec.b = float(rebound.b <= 1.) * max(stVec.b - float(kap3>=1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.b;
 
                 stVec.a = float(rebound.b <= 1.) * ((kap4) * stVec.a + (1.-kap4) * tex2.a) + float(rebound.b > 1.) * (tex4.g);
                 //stVec.a = (kap4) * stVec.a + (1.-kap4) * tex2.g;
-                stVec.a = float(rebound.b <= 1.) * max(stVec.a - float(kap4==1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.a;
+                stVec.a = float(rebound.b <= 1.) * max(stVec.a - float(kap4>=1.) * boundEvapRate,0.) + float(rebound.b > 1.) * stVec.a;
 
                 fragColor = stVec;
             }
@@ -571,10 +571,10 @@
                 u *= (1./rho0);
                 if(dist < brushRadius && mDown) {  
                     ddv = (mousePos - mousePrior)/iTime;
-                    float topspeed = length(dv);
+                    float topspeed = length(dv/2.);
                     float curspeed = length(ddv);
                     if(curspeed > 0.){
-                        ddv = normalize(ddv) * ((curspeed/topspeed));
+                        ddv = normalize(ddv) * ((curspeed/topspeed) * 0.05 + 0.01);
                         u = u + ddv;
                     }
                 }
